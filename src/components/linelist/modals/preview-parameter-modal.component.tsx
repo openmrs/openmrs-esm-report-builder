@@ -13,18 +13,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
-  ModalHeader,
   ModalBody,
-  ModalFooter,
-  Button,
-  ButtonSet,
   InlineNotification,
   Stack,
   Select,
   SelectItem,
   RadioButton,
   RadioButtonGroup,
-  InlineLoading,
 } from '@carbon/react';
 
 import type { LinelistParameter } from '../../../types/linelist-types';
@@ -278,8 +273,13 @@ const PreviewParameterModal: React.FC<Props> = ({
       modalLabel="Linelist Preview"
       preventCloseOnClickOutside
       size="sm"
+      primaryButtonText="Run Preview"
+      primaryButtonDisabled={loading}
+      onRequestSubmit={handleRun}
+      secondaryButtonText="Cancel"
+      loadingStatus={loading ? 'active' : 'inactive'}
+      loadingDescription="Running..."
     >
-      <ModalHeader />
       <ModalBody>
         {parameters.length === 0 ? (
           <InlineNotification
@@ -354,23 +354,6 @@ const PreviewParameterModal: React.FC<Props> = ({
           </Stack>
         )}
       </ModalBody>
-      <ModalFooter>
-        <ButtonSet>
-          <Button kind="secondary" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button kind="primary" onClick={handleRun} disabled={loading}>
-            {loading ? (
-              <>
-                Running...
-                <InlineLoading style={{ marginLeft: '8px' }} />
-              </>
-            ) : (
-              'Run Preview'
-            )}
-          </Button>
-        </ButtonSet>
-      </ModalFooter>
     </Modal>
   );
 };

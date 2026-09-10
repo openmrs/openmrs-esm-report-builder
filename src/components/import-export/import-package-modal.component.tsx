@@ -1,11 +1,8 @@
 import React from 'react';
 import {
-  Button,
-  ButtonSet,
   InlineNotification,
   Modal,
   ModalBody,
-  ModalFooter,
   ProgressBar,
   Tag,
   TextInput,
@@ -166,6 +163,7 @@ const ImportPackageModal: React.FC<ImportPackageModalProps> = ({ isOpen, onClose
   };
 
   const isValid = !useCustomPath || (useCustomPath && !pathError && customPath.trim() !== '');
+  const isFormStage = !isImporting && !importResult;
 
   return (
     <Modal
@@ -173,8 +171,10 @@ const ImportPackageModal: React.FC<ImportPackageModalProps> = ({ isOpen, onClose
       onRequestClose={onClose}
       modalHeading="Initialize Report Builder"
       modalLabel="Report Builder"
-      primaryButtonDisabled={!isValid || isImporting}
-      onRequestSubmit={startImport}
+      primaryButtonText={isFormStage ? 'Initialize' : importResult?.success ? 'Done' : 'Close'}
+      primaryButtonDisabled={isFormStage && (!isValid || isImporting)}
+      onRequestSubmit={isFormStage ? startImport : onClose}
+      secondaryButtonText={isFormStage ? 'Cancel' : undefined}
       size="md"
     >
       <ModalBody>
@@ -394,26 +394,6 @@ const ImportPackageModal: React.FC<ImportPackageModalProps> = ({ isOpen, onClose
           </div>
         )}
       </ModalBody>
-
-      <ModalFooter>
-        <ButtonSet>
-          {!isImporting && !importResult && (
-            <>
-              <Button kind="secondary" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button disabled={!isValid} onClick={startImport}>
-                Initialize
-              </Button>
-            </>
-          )}
-          {(isImporting || importResult) && (
-            <Button kind="primary" onClick={onClose}>
-              {importResult?.success ? 'Done' : 'Close'}
-            </Button>
-          )}
-        </ButtonSet>
-      </ModalFooter>
     </Modal>
   );
 };

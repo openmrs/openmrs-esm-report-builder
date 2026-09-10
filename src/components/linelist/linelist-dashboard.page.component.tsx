@@ -34,9 +34,7 @@ import {
   Checkbox,
   ProgressBar,
   Modal,
-  ModalHeader,
   ModalBody,
-  ModalFooter,
 } from '@carbon/react';
 import { Add, Document, Renew, Download, Play } from '@carbon/react/icons';
 import { useNavigate } from 'react-router-dom';
@@ -706,9 +704,12 @@ const LinelistReportsPage: React.FC<Props> = () => {
           modalHeading="Compile Reports"
           modalLabel="Select Report Category"
           onRequestClose={() => setShowCategoryModal(false)}
+          primaryButtonText="Compile"
+          primaryButtonDisabled={!selectedCategory || selectedCategory.trim() === ''}
+          onRequestSubmit={handleConfirmBulkCompile}
+          secondaryButtonText="Cancel"
           danger={undefined}
         >
-          <ModalHeader />
           <ModalBody>
             <p className={styles.modalDescription}>
               Select a report category to apply to all {selectedReports.size} selected report(s) during compilation.
@@ -725,20 +726,6 @@ const LinelistReportsPage: React.FC<Props> = () => {
               ))}
             </Select>
           </ModalBody>
-          <ModalFooter>
-            <ButtonSet>
-              <Button kind="secondary" onClick={() => setShowCategoryModal(false)}>
-                Cancel
-              </Button>
-              <Button
-                kind="primary"
-                onClick={handleConfirmBulkCompile}
-                disabled={!selectedCategory || selectedCategory.trim() === ''}
-              >
-                Compile
-              </Button>
-            </ButtonSet>
-          </ModalFooter>
         </Modal>
       )}
 

@@ -3,12 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   Button,
-  ButtonSet,
   InlineNotification,
   Modal,
-  ModalHeader,
   ModalBody,
-  ModalFooter,
   ProgressBar,
   Select,
   SelectItem,
@@ -517,9 +514,12 @@ const ReportDashboardPage: React.FC = () => {
             modalHeading="Compile Reports"
             modalLabel="Select Report Category"
             onRequestClose={() => setShowCategoryModal(false)}
+            primaryButtonText="Compile"
+            primaryButtonDisabled={!selectedCategory || selectedCategory.trim() === ''}
+            onRequestSubmit={handleConfirmBulkCompile}
+            secondaryButtonText="Cancel"
             danger={undefined}
           >
-            <ModalHeader />
             <ModalBody>
               <p style={{ marginBottom: '1rem' }}>
                 Select a report category to apply to all {selectedReports.size} selected report(s) during compilation.
@@ -536,20 +536,6 @@ const ReportDashboardPage: React.FC = () => {
                 ))}
               </Select>
             </ModalBody>
-            <ModalFooter>
-              <ButtonSet>
-                <Button kind="secondary" onClick={() => setShowCategoryModal(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  kind="primary"
-                  onClick={handleConfirmBulkCompile}
-                  disabled={!selectedCategory || selectedCategory.trim() === ''}
-                >
-                  Compile
-                </Button>
-              </ButtonSet>
-            </ModalFooter>
           </Modal>
         )}
 

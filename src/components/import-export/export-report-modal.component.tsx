@@ -1,11 +1,8 @@
 import React from 'react';
 import {
-  Button,
-  ButtonSet,
   InlineNotification,
   Modal,
   ModalBody,
-  ModalFooter,
   ProgressBar,
   Tag,
 } from '@carbon/react';
@@ -124,6 +121,7 @@ const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, onClose, 
   };
 
   const isValid = true;
+  const isFormStage = !isExporting && !exportResult;
 
   return (
     <Modal
@@ -131,8 +129,10 @@ const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, onClose, 
       onRequestClose={onClose}
       modalHeading="Extract Report Builder Artifacts"
       modalLabel="Report Builder"
-      primaryButtonDisabled={!isValid || isExporting}
-      onRequestSubmit={startExport}
+      primaryButtonText={isFormStage ? 'Extract' : exportResult?.success ? 'Done' : 'Close'}
+      primaryButtonDisabled={isFormStage && !isValid}
+      onRequestSubmit={isFormStage ? startExport : onClose}
+      secondaryButtonText={isFormStage ? 'Cancel' : undefined}
       size="md"
     >
       <ModalBody>
@@ -258,26 +258,6 @@ const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, onClose, 
           </div>
         )}
       </ModalBody>
-
-      <ModalFooter>
-        <ButtonSet>
-          {!isExporting && !exportResult && (
-            <>
-              <Button kind="secondary" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button disabled={!isValid} onClick={startExport}>
-                Extract
-              </Button>
-            </>
-          )}
-          {(isExporting || exportResult) && (
-            <Button kind="primary" onClick={onClose}>
-              {exportResult?.success ? 'Done' : 'Close'}
-            </Button>
-          )}
-        </ButtonSet>
-      </ModalFooter>
     </Modal>
   );
 };

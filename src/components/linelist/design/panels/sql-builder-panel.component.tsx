@@ -465,10 +465,8 @@ export default function CohortSQLEditor({
               </pre>
             </div>
           </ModalBody>
-          <ModalFooter>
-            <Button kind="secondary" onClick={() => setShowTemplates(false)}>
-              Cancel
-            </Button>
+          <ModalFooter secondaryButtonText="Cancel" onRequestClose={() => setShowTemplates(false)}>
+            {null}
           </ModalFooter>
         </ComposedModal>
       )}

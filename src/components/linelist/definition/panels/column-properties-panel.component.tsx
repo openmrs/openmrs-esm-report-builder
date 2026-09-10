@@ -12,11 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
-  ModalHeader,
   ModalBody,
-  ModalFooter,
-  Button,
-  ButtonSet,
   TextInput,
   TextArea,
   NumberInput,
@@ -28,16 +24,8 @@ import {
 } from '@carbon/react';
 import type { LinelistColumnDraft, FilterMap } from '../../../../types/linelist-types';
 
-// Scoped styles for equal-width buttons and SQL editor
+// Scoped styles for the SQL editor
 const editModalStyles = `
-.edit-modal-buttons {
-  display: flex;
-  width: 100%;
-  gap: 1rem;
-}
-.edit-modal-buttons button {
-  flex: 1;
-}
 .sql-editor {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 0.875rem;
@@ -142,8 +130,10 @@ const EditColumnModal: React.FC<Props> = ({ open, column, onSave, onClose, filte
       size="md"
       modalHeading="Edit Column"
       modalLabel="Column Configuration"
+      primaryButtonText="Save Changes"
+      onRequestSubmit={handleSave}
+      secondaryButtonText="Cancel"
     >
-      <ModalHeader closeModal={onClose} />
       <ModalBody>
         <Stack gap={6}>
           {/* Basic Information */}
@@ -330,16 +320,6 @@ const EditColumnModal: React.FC<Props> = ({ open, column, onSave, onClose, filte
           </div>
         </Stack>
       </ModalBody>
-      <ModalFooter>
-        <ButtonSet className="edit-modal-buttons">
-          <Button kind="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button kind="primary" onClick={handleSave}>
-            Save Changes
-          </Button>
-        </ButtonSet>
-      </ModalFooter>
     </Modal>
     </>
   );
