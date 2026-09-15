@@ -673,9 +673,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@epcare/esm-report-builder@workspace:.":
+"@openmrs/esm-report-builder@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@epcare/esm-report-builder@workspace:."
+  resolution: "@openmrs/esm-report-builder@workspace:."
   dependencies:
     "@carbon/icons-react": "npm:^11.58.0"
     "@carbon/react": "npm:^1.39.0"

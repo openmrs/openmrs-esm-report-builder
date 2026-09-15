@@ -1,6 +1,6 @@
 # OpenMRS ESM Report Builder
 
-**Package:** `@epcare/esm-report-builder` *(currently being prepared for `@openmrs/esm-report-builder` packaging)*  
+**Package:** `@openmrs/esm-report-builder` *(currently being prepared for `@openmrs/esm-report-builder` packaging)*  
 **Platform:** OpenMRS 3 (O3) Microfrontend  
 **Status:** Active Development
 

@@ -1,5 +1,5 @@
 {
-  "name": "@epcare/esm-report-builder",
+  "name": "@openmrs/esm-report-builder",
   "version": "0.1.0",
   "license": "MPL-2.0",
   "description": "OpenMRS ESM Report Builder",
@@ -100,7 +100,7 @@
     "rootDir": "src",
     "config": {
       "paths": {
-        "@epcare/esm-report-builder": [
+        "@openmrs/esm-report-builder": [
           "src"
         ]
       }
