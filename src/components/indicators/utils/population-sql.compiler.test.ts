@@ -140,8 +140,8 @@ describe('Population SQL Compiler', () => {
             expect(result.sql).toContain('WITH A AS');
             expect(result.sql).toMatch(/B AS \(/);  // B AS ( appears after A, without WITH
             expect(result.sql).toContain('INNER JOIN B');
-            expect(result.sql).toContain('ON B.client_id = A.client_id');
-            expect(result.sql).toMatch(/SELECT DISTINCT\s+A\.client_id/);  // Handles multi-line SELECT
+            expect(result.sql).toContain('ON B.patient_id = A.patient_id');
+            expect(result.sql).toMatch(/SELECT DISTINCT\s+A\.patient_id/);  // Handles multi-line SELECT
         });
 
         it('should compile nested composite indicators correctly', async () => {
@@ -212,13 +212,14 @@ describe('Population SQL Compiler', () => {
 
             // Should have LEFT JOIN for A_AND_NOT_B
             expect(result.sql).toContain('LEFT JOIN B');
-            expect(result.sql).toContain('WHERE B.client_id IS NULL');
+            expect(result.sql).toContain('WHERE B.patient_id IS NULL');
 
             // Should not contain COUNT(*)
             expect(result.sql).not.toContain('COUNT(*)');
 
-            // All client_id references should be preserved
+            // Leaf source columns keep client_id, but the population output contract is patient_id
             expect(result.sql).toMatch(/client_id/g);
+            expect(result.sql).toMatch(/AS patient_id/);
         });
     });
 
@@ -260,7 +261,54 @@ describe('Population SQL Compiler', () => {
             const result = await compilePopulationSql(composite, getIndicator);
 
             expect(result.sql).toContain('LEFT JOIN B');
-            expect(result.sql).toContain('WHERE B.client_id IS NULL');
+            expect(result.sql).toContain('WHERE B.patient_id IS NULL');
+        });
+
+        it('should normalize qualified leaf columns (a.client_id AS client_id) to the patient_id contract', async () => {
+            // Mirrors real saved indicators, which use qualified refs with an existing alias
+            const indicatorA = createIndicator({
+                uuid: 'indicator-a',
+                code: 'A',
+                kind: 'BASE',
+                sqlTemplate: 'SELECT DISTINCT a.client_id AS client_id FROM fact_a a WHERE a.x = 1'
+            });
+
+            const indicatorB = createIndicator({
+                uuid: 'indicator-b',
+                code: 'B',
+                kind: 'BASE',
+                sqlTemplate: 'SELECT DISTINCT b.client_id AS client_id FROM fact_b b WHERE b.y = 2'
+            });
+
+            const composite = createIndicator({
+                uuid: 'composite-not-qualified',
+                code: 'A_NOT_B_QUALIFIED',
+                kind: 'COMPOSITE',
+                configJson: JSON.stringify({
+                    version: 1,
+                    unit: 'Patients',
+                    operator: 'A_AND_NOT_B',
+                    indicatorAId: 'indicator-a',
+                    indicatorBId: 'indicator-b'
+                })
+            });
+
+            const indicators = new Map([
+                ['indicator-a', indicatorA],
+                ['indicator-b', indicatorB]
+            ]);
+            const getIndicator = createMockGetIndicator(indicators);
+
+            const result = await compilePopulationSql(composite, getIndicator);
+
+            // Leaves are aliased to the contract column...
+            expect(result.sql).toMatch(/SELECT DISTINCT a\.client_id AS patient_id/);
+            expect(result.sql).toMatch(/SELECT DISTINCT b\.client_id AS patient_id/);
+
+            // ...and every CTE reference uses it — no dangling client_id refs on A/B
+            expect(result.sql).toContain('ON B.patient_id = A.patient_id');
+            expect(result.sql).toContain('WHERE B.patient_id IS NULL');
+            expect(result.sql).not.toMatch(/\b[AB]\.client_id\b/);
         });
     });
 
@@ -302,8 +350,8 @@ describe('Population SQL Compiler', () => {
             const result = await compilePopulationSql(composite, getIndicator);
 
             expect(result.sql).toContain('UNION');
-            expect(result.sql).toContain('SELECT client_id FROM A');
-            expect(result.sql).toContain('SELECT client_id FROM B');
+            expect(result.sql).toContain('SELECT patient_id FROM A');
+            expect(result.sql).toContain('SELECT patient_id FROM B');
         });
     });
 
@@ -628,19 +676,19 @@ describe('Population SQL Compiler', () => {
 
     describe('Scalar Count SQL Generation', () => {
         it('should wrap population SQL in COUNT query', () => {
-            const populationSql = 'SELECT DISTINCT client_id FROM patients WHERE active = 1';
+            const populationSql = 'SELECT DISTINCT patient_id FROM patients WHERE active = 1';
 
             const scalarSql = generateScalarCountSql(populationSql);
 
             expect(scalarSql).toContain('WITH base_population AS');
-            expect(scalarSql).toContain('COUNT(DISTINCT client_id) AS total');
+            expect(scalarSql).toContain('COUNT(DISTINCT patient_id) AS total');
             expect(scalarSql).toContain('FROM base_population');
         });
     });
 
     describe('Age/Sex Disaggregation SQL Generation', () => {
         it('should generate disaggregation SQL with correct structure', () => {
-            const populationSql = 'SELECT DISTINCT client_id FROM patients WHERE active = 1';
+            const populationSql = 'SELECT DISTINCT patient_id FROM patients WHERE active = 1';
 
             const disaggSql = generateAgeSexDisaggregationSql({
                 populationSql,
@@ -662,7 +710,7 @@ describe('Population SQL Compiler', () => {
         });
 
         it('should handle only female gender', () => {
-            const populationSql = 'SELECT DISTINCT client_id FROM patients WHERE active = 1';
+            const populationSql = 'SELECT DISTINCT patient_id FROM patients WHERE active = 1';
 
             const disaggSql = generateAgeSexDisaggregationSql({
                 populationSql,
@@ -676,7 +724,7 @@ describe('Population SQL Compiler', () => {
 
     describe('Edge Cases', () => {
         it('should handle empty genders array by defaulting to both', () => {
-            const populationSql = 'SELECT DISTINCT client_id FROM patients WHERE active = 1';
+            const populationSql = 'SELECT DISTINCT patient_id FROM patients WHERE active = 1';
 
             const disaggSql = generateAgeSexDisaggregationSql({
                 populationSql,
@@ -690,7 +738,7 @@ describe('Population SQL Compiler', () => {
         });
 
         it('should escape single quotes in age category code', () => {
-            const populationSql = 'SELECT DISTINCT client_id FROM patients WHERE active = 1';
+            const populationSql = 'SELECT DISTINCT patient_id FROM patients WHERE active = 1';
 
             const disaggSql = generateAgeSexDisaggregationSql({
                 populationSql,

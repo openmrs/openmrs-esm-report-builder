@@ -6,7 +6,9 @@
  * parsing/modifying generated SQL queries.
  *
  * Key design principles:
- * 1. Every indicator (atomic or composite) compiles to population SQL returning client_id
+ * 1. Every indicator (atomic or composite) compiles to population SQL whose output column
+ *    is always aliased AS patient_id (see convertCountToPopulation), regardless of the
+ *    source indicator's configured id column
  * 2. Scalar counts and disaggregations are wrappers around population SQL
  * 3. Nested composite indicators are handled recursively
  * 4. Circular dependencies are detected
@@ -449,8 +451,7 @@ async function compileCompositePopulation(
     const sql = combineWithOperator(
         config.operator!,
         resultA.sql,
-        resultB.sql,
-        config.unit || 'Patients'
+        resultB.sql
     );
 
     // Validate the combined SQL
@@ -486,10 +487,12 @@ async function compileCompositePopulation(
 function combineWithOperator(
     operator: CompositeOperator,
     populationSqlA: string,
-    populationSqlB: string,
-    unit: 'Patients' | 'Encounters'
+    populationSqlB: string
 ): string {
-    const idField = unit === 'Encounters' ? 'encounter_id' : 'client_id';
+    // Contract: convertCountToPopulation normalizes ALL population SQL to expose a single
+    // output column aliased AS patient_id, so the combine step must reference patient_id
+    // regardless of the source indicators' configured id column or unit.
+    const idField = 'patient_id';
 
     // Clean the SQL - remove trailing semicolons
     const cleanA = populationSqlA.trim().replace(/;+\s*$/, '');
@@ -662,8 +665,16 @@ function convertCountToPopulation(sql: string, patientIdColumn: string = 'client
             return fixed;
         }
         // Fix the alias to normalize to patient_id (handles client_id, encounter_id, etc.)
-        const replacePattern = /SELECT\s+DISTINCT\s+(\w+\.?(?:client_id|patient_id|encounter_id))(?:\s+AS\s+\w+)?/i;
-        return fixed.replace(replacePattern, `SELECT DISTINCT $1 AS patient_id`);
+        // Handles both qualified (a.client_id) and unqualified (client_id) column references,
+        // with or without an existing alias. The contract requires EVERY population SQL to
+        // expose patient_id, otherwise combineWithOperator/disaggregation reference a column
+        // the CTE does not expose.
+        const replacePattern = /SELECT\s+DISTINCT\s+(?:(\w+)\.)?(client_id|patient_id|encounter_id)(?:\s+AS\s+\w+)?/i;
+        return fixed.replace(
+            replacePattern,
+            (_match, tableAlias: string | undefined, column: string) =>
+                `SELECT DISTINCT ${tableAlias ? `${tableAlias}.` : ''}${column} AS patient_id`
+        );
     }
 
     // Check for COUNT(DISTINCT column) pattern - e.g., SELECT COUNT(DISTINCT a.client_id) AS total FROM ...
@@ -745,6 +756,7 @@ function indent(sql: string, spaces: number): string {
  * Generate scalar COUNT SQL from population SQL.
  *
  * This wraps the population SQL in a COUNT query.
+ * Population SQL must expose the patient_id column per the compiler contract.
  */
 export function generateScalarCountSql(populationSql: string): string {
     const clean = populationSql.trim().replace(/;+\s*$/, '');
@@ -754,7 +766,7 @@ WITH base_population AS (
 ${indent(clean, 0)}
 )
 SELECT
-    COUNT(DISTINCT client_id) AS total
+    COUNT(DISTINCT patient_id) AS total
 FROM base_population;
 `.trim();
 }
