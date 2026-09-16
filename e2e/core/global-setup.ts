@@ -13,9 +13,9 @@ async function globalSetup(config: FullConfig) {
   const response = await requestContext.post(`${e2eBaseUrl}/ws/rest/v1/session`, {
     headers: {
       Authorization: authHeader,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
     },
-    form: {
+    data: {
       sessionLocation: loginLocation,
     },
     failOnStatusCode: false,
