@@ -23,5 +23,10 @@ RUN npm_config_legacy_peer_deps=true openmrs assemble --manifest --mode config -
 
 FROM openmrs/openmrs-reference-application-3-frontend:nightly
 
-RUN rm -rf /usr/share/nginx/html/*
+# Keep the image's default index.html (the startup script patches it with
+# SPA_PATH/API_URL at runtime); overlay the freshly assembled import map and
+# modules after dropping the precompressed variants that would shadow them.
+RUN rm -f /usr/share/nginx/html/importmap.json.br /usr/share/nginx/html/importmap.json.gz \
+    /usr/share/nginx/html/routes.registry.json.br /usr/share/nginx/html/routes.registry.json.gz
+
 COPY --from=build /app/spa/ /usr/share/nginx/html/
