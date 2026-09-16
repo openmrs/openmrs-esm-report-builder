@@ -13,7 +13,7 @@ services:
 
   frontend:
     build:
-      context: ../..
+      context: .
       dockerfile: e2e/support/github/Dockerfile
     hostname: frontend
     environment:

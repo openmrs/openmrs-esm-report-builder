@@ -35,14 +35,14 @@ wait_for_gateway() {
   local max_attempts=30
   local attempt=0
   echo "Waiting for gateway container to start..."
-  while ! docker compose -p "$project_name" -f "$compose_file" ps --status running --services 2>/dev/null | grep -q "^gateway$"; do
+  while ! docker compose --project-directory "$repository_root" -p "$project_name" -f "$compose_file" ps --status running --services 2>/dev/null | grep -q "^gateway$"; do
     attempt=$((attempt + 1))
     if [[ $attempt -ge $max_attempts ]]; then
       echo "ERROR: Gateway container failed to start within 60 seconds" >&2
       echo "Container status:" >&2
-      docker compose -p "$project_name" -f "$compose_file" ps >&2
+      docker compose --project-directory "$repository_root" -p "$project_name" -f "$compose_file" ps >&2
       echo "Gateway logs:" >&2
-      docker compose -p "$project_name" -f "$compose_file" logs gateway >&2
+      docker compose --project-directory "$repository_root" -p "$project_name" -f "$compose_file" logs gateway >&2
       exit 1
     fi
     sleep 2
@@ -75,7 +75,7 @@ cleanup() {
   fi
   echo ""
   echo "Stopping Docker containers..."
-  docker compose -p "$project_name" -f "$compose_file" down -v 2>/dev/null || true
+  docker compose --project-directory "$repository_root" -p "$project_name" -f "$compose_file" down -v 2>/dev/null || true
   echo "Cleanup complete."
 }
 trap cleanup EXIT
@@ -93,8 +93,8 @@ echo "========================================"
 
 echo ""
 echo "Building and starting Docker containers..."
-docker compose -p "$project_name" -f "$compose_file" build frontend
-docker compose -p "$project_name" -f "$compose_file" up -d
+docker compose --project-directory "$repository_root" -p "$project_name" -f "$compose_file" build frontend
+docker compose --project-directory "$repository_root" -p "$project_name" -f "$compose_file" up -d
 
 wait_for_gateway
 wait_for_backend "$base_url"
