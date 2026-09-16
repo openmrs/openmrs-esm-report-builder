@@ -11,6 +11,13 @@
   &:last-child {
     border-bottom: none;
   }
+
+  :global {
+    .cds--tag {
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+  }
 }
 
 .sectionHeader {
@@ -331,12 +338,4 @@
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid #e5e7eb;
-}
-
-/* Teal accent for interactive elements */
-:global {
-  .cds--tag {
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
 }

@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SECTIONS,
   extractMonitorLayout,
@@ -22,7 +23,6 @@ function monitor(overrides: Partial<ETLMonitorDto> = {}): ETLMonitorDto {
     }),
     ...overrides,
   } as ETLMonitorDto;
-
 }
 
 function report(overrides: Partial<ReportDto> = {}): ReportDto {
@@ -118,7 +118,14 @@ describe('resolveDashboardLayout', () => {
         widgets: [],
         autoInclude: { etlMonitors: { enabled: true } },
       },
-      [monitor(), monitor({ uuid: 'm2', name: 'Status', displayConfigJson: JSON.stringify({ schemaVersion: 2, component: 'STATUS_CARD', fields: [] }) })],
+      [
+        monitor(),
+        monitor({
+          uuid: 'm2',
+          name: 'Status',
+          displayConfigJson: JSON.stringify({ schemaVersion: 2, component: 'STATUS_CARD', fields: [] }),
+        }),
+      ],
       [],
     );
     const history = resolved.sections.find((s) => s.key === 'history');
@@ -132,7 +139,10 @@ describe('resolveDashboardLayout', () => {
   it('explicit widgets win over auto-include (no duplicates, by uuid and by code)', () => {
     const config = {
       schemaVersion: 1 as const,
-      sections: [{ key: 'overview', label: 'Overview', order: 10 }, { key: 'history', label: 'History', order: 20 }],
+      sections: [
+        { key: 'overview', label: 'Overview', order: 10 },
+        { key: 'history', label: 'History', order: 20 },
+      ],
       widgets: [{ widgetType: 'ETL_MONITOR' as const, refUuid: 'm-uuid', sectionKey: 'overview' }],
       autoInclude: { etlMonitors: { enabled: true } },
     };
@@ -203,13 +213,34 @@ describe('resolveDashboardLayout', () => {
   });
 
   it('orders slots explicit-first, then by order/priority/title', () => {
-    const autoMonitor = monitor({ uuid: 'auto', name: 'beta auto', displayConfigJson: JSON.stringify({ schemaVersion: 2, component: 'STATUS_CARD', layout: { section: 'overview', span: {}, priority: 5 }, fields: [] }) });
+    const autoMonitor = monitor({
+      uuid: 'auto',
+      name: 'beta auto',
+      displayConfigJson: JSON.stringify({
+        schemaVersion: 2,
+        component: 'STATUS_CARD',
+        layout: { section: 'overview', span: {}, priority: 5 },
+        fields: [],
+      }),
+    });
     const config = {
       schemaVersion: 1 as const,
       sections: [{ key: 'overview', label: 'Overview', order: 10 }],
       widgets: [
-        { widgetType: 'ETL_MONITOR' as const, refUuid: 'm-uuid', sectionKey: 'overview', order: 200, titleOverride: 'second' },
-        { widgetType: 'ETL_MONITOR' as const, refUuid: 'm2', sectionKey: 'overview', order: 100, titleOverride: 'first' },
+        {
+          widgetType: 'ETL_MONITOR' as const,
+          refUuid: 'm-uuid',
+          sectionKey: 'overview',
+          order: 200,
+          titleOverride: 'second',
+        },
+        {
+          widgetType: 'ETL_MONITOR' as const,
+          refUuid: 'm2',
+          sectionKey: 'overview',
+          order: 100,
+          titleOverride: 'first',
+        },
       ],
       autoInclude: { etlMonitors: { enabled: true } },
     };

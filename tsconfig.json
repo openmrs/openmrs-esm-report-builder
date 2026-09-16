@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
-    "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
     "jsx": "react",
+    "skipLibCheck": true,
     "lib": [
       "dom",
       "es5",
@@ -12,32 +15,10 @@
       "es2016.array.include",
       "es2018",
       "es2020",
-      "es2022",
-      "esnext"
+      "es2022"
     ],
-    "module": "esnext",
-    "moduleResolution": "node",
-    "noEmit": true,
-    "noImplicitAny": false,
     "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "target": "es2015",
-    "baseUrl": ".",
-    "paths": {
-      "__mocks__": ["./__mocks__"],
-      "@hooks/*": ["./src/hooks/*"],
-      "@types": ["./src/types"],
-      "@tools/*": ["./tools/*"],
-      "@constants": ["./src/constants"],
-      "@resources/*": ["./src/resources/*"],
-      "@openmrs/*": ["./node_modules/@openmrs/*"]
-    }
-  },
-  "exclude": [
-    "node_modules",
-    "dist",
-    "coverage",
-    "e2e",
-    "playwright.config.ts"
-  ]
+    "noEmit": true,
+    "target": "esnext"
+  }
 }

@@ -1,5 +1,8 @@
 {
   "$schema": "https://json.openmrs.org/routes.schema.json",
+  "backendDependencies": {
+    "reportbuilder": "*"
+  },
   "pages": [
     {
       "component": "root",

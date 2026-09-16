@@ -46,10 +46,6 @@
     }
   }
 
-  .accordion {
-    // Override Carbon accordion defaults if needed
-  }
-
   .categoryHeader {
     display: flex;
     align-items: center;
@@ -316,14 +312,13 @@
     margin: 0;
     color: #161616;
   }
-}
 
-// Debug button styling
-button[icondescription="View column debug info"] {
-  svg {
-    fill: #0f62fe;
-  }
-  &:hover {
-    background-color: #e5f1ff !important;
+  button[icondescription="View column debug info"] {
+    svg {
+      fill: #0f62fe;
+    }
+    &:hover {
+      background-color: #e5f1ff !important;
+    }
   }
 }

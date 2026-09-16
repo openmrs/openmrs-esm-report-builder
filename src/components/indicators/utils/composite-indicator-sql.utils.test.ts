@@ -2,7 +2,7 @@
  * Unit tests for composite-indicator-sql.utils
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 import { countSqlToPopulationSql } from './composite-indicator-sql.utils';
 
 describe('countSqlToPopulationSql', () => {

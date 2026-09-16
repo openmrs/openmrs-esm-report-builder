@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   computeNextRun,
   countStatusEntries,
@@ -22,11 +23,11 @@ const monitors = [monitor('uuid-1', 'alpha-monitor'), monitor('uuid-2', 'Beta Mo
 
 describe('etl-task-card.util', () => {
   beforeEach(() => {
-    jest.useFakeTimers().setSystemTime(NOW);
+    vi.useFakeTimers().setSystemTime(NOW);
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   describe('parseLenientDate', () => {

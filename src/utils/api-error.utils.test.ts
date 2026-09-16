@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { RB } from '../constants/privileges';
 import { guardRejection, normalizeApiError, PrivilegeError } from './api-error.utils';
 
@@ -92,9 +93,7 @@ describe('normalizeApiError', () => {
   describe('401 (expired session)', () => {
     it('marks the error as an auth error and redirects to the SPA login page', () => {
       stubLocation();
-      const error = normalizeApiError(
-        axiosError(401, { error: { message: 'Session has expired' } }),
-      ) as PrivilegeError;
+      const error = normalizeApiError(axiosError(401, { error: { message: 'Session has expired' } })) as PrivilegeError;
 
       expect(error).toBeInstanceOf(PrivilegeError);
       expect(error.isAuthError).toBe(true);
@@ -112,9 +111,7 @@ describe('normalizeApiError', () => {
   });
 
   it('maps other statuses to a generic error carrying the server message', () => {
-    const error = normalizeApiError(
-      axiosError(500, { error: { message: 'Boom' } }),
-    ) as Error & { status?: number };
+    const error = normalizeApiError(axiosError(500, { error: { message: 'Boom' } })) as Error & { status?: number };
     expect(error).not.toBeInstanceOf(PrivilegeError);
     expect(error.message).toBe('Boom');
     expect(error.status).toBe(500);
@@ -134,18 +131,17 @@ describe('guardRejection', () => {
 });
 
 describe('redirectToLogin loop guard', () => {
-  it('navigates at most once across repeated calls (module-level latch)', () => {
+  it('navigates at most once across repeated calls (module-level latch)', async () => {
+    vi.resetModules();
+    const fresh = await import('./api-error.utils');
+
     stubLocation();
-    jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires -- fresh module instance for the latch test
-      const fresh = require('./api-error.utils');
-      stubLocation();
-      fresh.redirectToLogin();
-      expect(window.location.href).toContain('/login');
-      // The latch makes further calls no-ops even with a fresh path.
-      stubLocation({ pathname: '/openmrs/spa/report-builder/admin', href: 'unchanged' });
-      fresh.redirectToLogin();
-      expect(window.location.href).toBe('unchanged');
-    });
+
+    fresh.redirectToLogin();
+    expect(window.location.href).toContain('/login');
+    // The latch makes further calls no-ops even with a fresh path.
+    stubLocation({ pathname: '/openmrs/spa/report-builder/admin', href: 'unchanged' });
+    fresh.redirectToLogin();
+    expect(window.location.href).toBe('unchanged');
   });
 });

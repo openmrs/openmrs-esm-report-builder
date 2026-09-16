@@ -5,9 +5,9 @@ import { redirectToLogin } from '../../utils/api-error.utils';
 import AccessDeniedPage from './access-denied-page.component';
 
 interface PrivilegeRouteProps {
-    /** Privileges granting access; any-of semantics, matching the backend's @Authorized. */
-    required: string[];
-    children: React.ReactNode;
+  /** Privileges granting access; any-of semantics, matching the backend's @Authorized. */
+  required: string[];
+  children: React.ReactNode;
 }
 
 /**

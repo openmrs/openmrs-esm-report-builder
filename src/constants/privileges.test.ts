@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { RB, RB_PREFIX, ROUTE_PRIVILEGES, rbDisplay } from './privileges';
 
 describe('privilege catalog', () => {
