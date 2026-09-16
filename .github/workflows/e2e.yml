@@ -8,11 +8,6 @@ on:
     branches:
       - main
 
-env:
-  TURBO_API: 'http://127.0.0.1:9080'
-  TURBO_TOKEN: 'turbo-token'
-  TURBO_TEAM: ${{ github.repository_owner }}
-
 jobs:
   run_e2e_tests:
     runs-on: ubuntu-latest
@@ -27,6 +22,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+
+      - name: 🧶 Enable Corepack (project uses Yarn 4)
+        run: corepack enable
 
       - name: 💾 Cache dependencies
         id: cache-dependencies
@@ -55,27 +53,18 @@ jobs:
         run: npx playwright install chromium --with-deps
         if: steps.playwright-cache.outputs.cache-hit != 'true'
 
-      - name: 🚀 Setup local cache server for Turborepo
-        uses: felixmosh/turborepo-gh-artifacts@v4
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          server-token: ${{ env.TURBO_TOKEN }}
-
-      - name: 🏗️ Build app
-        run: yarn turbo run build --color
-
-      - name: 🖥️ Run dev server
+      - name: 🐳 Start OpenMRS stack (gateway, frontend, backend, db)
         run: bash e2e/support/github/run-e2e-docker-env.sh
 
       - name: ⏳ Wait for OpenMRS instance to start
-        run: while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://localhost:8080/openmrs/login.htm)" != "200" ]]; do sleep 10; done
+        run: while [[ "$(curl -s -o /dev/null -w '%{http_code}' ${{ env.E2E_BASE_URL }}/login.htm)" != "200" ]]; do sleep 10; done
 
       - name: 🧪 Run E2E tests
         run: yarn playwright test
 
-      - name: 🛑 Stop dev server
+      - name: 🛑 Stop OpenMRS stack
         if: '!cancelled()'
-        run: docker stop $(docker ps -a -q)
+        run: docker stop $(docker ps -a -q) || true
 
       - name: 📤 Upload Report
         uses: actions/upload-artifact@v7

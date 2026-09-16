@@ -1,0 +1,13 @@
+node_modules
+.git
+.github
+dist
+docs
+logs
+playwright-report
+test-results
+e2e/storageState.json
+package.tgz
+*.md
+*.sql
+.mf
