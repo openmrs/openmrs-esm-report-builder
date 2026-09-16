@@ -10,7 +10,7 @@ export class ReportSectionsPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByRole('heading', { name: 'Sections' })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: 'Sections', exact: true })).toBeVisible();
   }
 
   async openPreviewFor(sectionName: string) {

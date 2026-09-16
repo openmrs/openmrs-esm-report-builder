@@ -10,7 +10,7 @@ export class ETLSourcesPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByRole('heading', { name: 'ETL Sources' })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: 'ETL Sources', exact: true })).toBeVisible();
   }
 
   async clickNew() {
@@ -18,12 +18,12 @@ export class ETLSourcesPage {
   }
 
   async fillForm(data: { name: string; code?: string; schemaName?: string; sourceType?: string; description?: string; tablePatterns?: string }) {
-    await this.page.locator('[data-testid="etl-source-name"] input').fill(data.name);
-    if (data.code !== undefined) await this.page.locator('[data-testid="etl-source-code"] input').fill(data.code);
-    if (data.schemaName !== undefined) await this.page.locator('[data-testid="etl-source-schema"] input').fill(data.schemaName);
-    if (data.sourceType !== undefined) await this.page.locator('[data-testid="etl-source-type"] input').fill(data.sourceType);
-    if (data.description !== undefined) await this.page.locator('[data-testid="etl-source-description"] textarea').fill(data.description);
-    if (data.tablePatterns !== undefined) await this.page.locator('[data-testid="etl-source-table-patterns"] textarea').fill(data.tablePatterns);
+    await this.page.getByTestId('etl-source-name').fill(data.name);
+    if (data.code !== undefined) await this.page.getByTestId('etl-source-code').fill(data.code);
+    if (data.schemaName !== undefined) await this.page.getByTestId('etl-source-schema').fill(data.schemaName);
+    if (data.sourceType !== undefined) await this.page.getByTestId('etl-source-type').fill(data.sourceType);
+    if (data.description !== undefined) await this.page.getByTestId('etl-source-description').fill(data.description);
+    if (data.tablePatterns !== undefined) await this.page.getByTestId('etl-source-table-patterns').fill(data.tablePatterns);
   }
 
   async save() {
