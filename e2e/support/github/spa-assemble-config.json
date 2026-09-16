@@ -1,9 +1,6 @@
 {
   "frontendModules": {
-    "@openmrs/esm-login-app": "next",
     "@openmrs/esm-primary-navigation-app": "next",
-    "@openmrs/esm-home-app": "next",
-    "@openmrs/esm-system-admin-app": "next",
     "@openmrs/esm-report-builder": "file:/app/_openmrs_esm_report_builder.tgz"
   }
 }
