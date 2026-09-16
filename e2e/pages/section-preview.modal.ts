@@ -9,10 +9,10 @@ export class SectionPreviewModal {
   }
 
   async fillPreviewRequest(data: { startDate: string; endDate: string; indicatorUuid?: string; maxRows?: number }) {
-    await this.page.locator('[data-testid="section-preview-startdate"] input').fill(data.startDate);
-    await this.page.locator('[data-testid="section-preview-enddate"] input').fill(data.endDate);
-    if (data.indicatorUuid !== undefined) await this.page.locator('[data-testid="section-preview-indicatoruuid"] input').fill(data.indicatorUuid);
-    if (data.maxRows !== undefined) await this.page.locator('[data-testid="section-preview-maxrows"] input').fill(String(data.maxRows));
+    await this.page.getByTestId('section-preview-startdate').fill(data.startDate);
+    await this.page.getByTestId('section-preview-enddate').fill(data.endDate);
+    if (data.indicatorUuid !== undefined) await this.page.getByTestId('section-preview-indicatoruuid').fill(data.indicatorUuid);
+    if (data.maxRows !== undefined) await this.page.getByTestId('section-preview-maxrows').fill(String(data.maxRows));
   }
 
   async run() {

@@ -236,7 +236,7 @@ export default function ReportSectionPreviewModal({ open, onClose, section }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTabIndex, data, section]); // generateSql and sqlData are intentionally omitted to avoid infinite loops
 
-  const canRun = Boolean(section?.uuid) && Boolean(startDate) && Boolean(endDate) && !loading;
+  const canRun = Boolean(section?.uuid) && !loading;
 
   // Function to extract pre-compiled SQL from section configJson
   const generateSql = (indicatorUuid: string, section: ReportSectionDto) => {

@@ -89,6 +89,6 @@ test.describe('section preview', () => {
     });
     await sectionPreviewModal.run();
     await sectionPreviewModal.expectMatrixVisible();
-    await expect(page.getByText('HTS TST')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'HTS TST' })).toBeVisible();
   });
 });
