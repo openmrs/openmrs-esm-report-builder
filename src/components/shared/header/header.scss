@@ -44,6 +44,7 @@
   @include type.type-style('heading-05');
   color: var(--cds-text-primary, #161616);
   line-height: 1.15;
+  margin: 0;
 }
 
 .metaLine {

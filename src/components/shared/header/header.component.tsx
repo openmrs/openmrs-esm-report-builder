@@ -39,7 +39,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, status, actions, showA
 
                 <div className={styles.pageLabels}>
                     <div className={styles.appName}>{t('reportBuilder', 'Report builder')}</div>
-                    <div className={styles.pageTitle}>{title}</div>
+                    <h1 className={styles.pageTitle}>{title}</h1>
 
                     {(metaLeft || metaRight) && (
                         <div className={styles.metaLine}>

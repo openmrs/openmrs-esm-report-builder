@@ -15,7 +15,7 @@ export class ReportSectionsPage {
 
   async openPreviewFor(sectionName: string) {
     const row = this.page.getByTestId(`section-row-${sectionName.replace(/\s+/g, '-')}`);
-    await row.getByLabel('Actions').click();
+    await row.getByRole('button').click();
     await this.page.getByText('Preview', { exact: true }).click();
   }
 }
