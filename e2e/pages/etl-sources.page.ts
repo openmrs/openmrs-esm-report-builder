@@ -1,11 +1,12 @@
 import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { playwrightBaseUrl } from '../core/env';
 
 export class ETLSourcesPage {
   constructor(private readonly page: Page) {}
 
   async goto() {
-    await this.page.goto('/admin/etl-sources');
+    await this.page.goto(`${playwrightBaseUrl}/admin/etl-sources`);
   }
 
   async expectLoaded() {

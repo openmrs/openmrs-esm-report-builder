@@ -1,11 +1,12 @@
 import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { playwrightBaseUrl } from '../core/env';
 
 export class ReportSectionsPage {
   constructor(private readonly page: Page) {}
 
   async goto() {
-    await this.page.goto('/sections');
+    await this.page.goto(`${playwrightBaseUrl}/sections`);
   }
 
   async expectLoaded() {

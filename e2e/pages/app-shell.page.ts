@@ -1,10 +1,11 @@
 import type { Page } from '@playwright/test';
+import { playwrightBaseUrl } from '../core/env';
 
 export class AppShellPage {
   constructor(private readonly page: Page) {}
 
   async goto(path = '/') {
-    await this.page.goto(path);
+    await this.page.goto(`${playwrightBaseUrl}${path}`);
   }
 
   async openHome() {

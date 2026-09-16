@@ -10,7 +10,7 @@ async function globalSetup(config: FullConfig) {
   const requestContext = await request.newContext({ baseURL: e2eBaseUrl });
 
   const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-  const response = await requestContext.post('/ws/rest/v1/session', {
+  const response = await requestContext.post(`${e2eBaseUrl}/ws/rest/v1/session`, {
     headers: {
       Authorization: authHeader,
       'Content-Type': 'application/x-www-form-urlencoded',
