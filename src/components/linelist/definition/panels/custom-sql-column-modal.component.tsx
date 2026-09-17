@@ -3,7 +3,7 @@
  *
  * Lets users add a custom column backed by a SQL expression.
  * The SQL runs per-row and can reference the patient/client ID via
- * the :client_id or :patient_id bind parameter.
+ * the :patient_id or :patient_id bind parameter.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -32,7 +32,7 @@ type Props = {
   /** Existing column names, used to prevent duplicates */
   existingColumnNames?: string[];
   /** The patient/client ID column alias used by the base cohort SQL */
-  idColumnAlias?: 'client_id' | 'patient_id';
+  idColumnAlias?: 'patient_id' | 'patient_id';
   /** Name of the current primary datasource (for display) */
   primaryDatasourceName?: string;
 };
@@ -40,15 +40,15 @@ type Props = {
 const EXAMPLES = [
   {
     label: 'Last visit date',
-    sql: 'SELECT MAX(encounter_datetime) FROM encounter WHERE client_id = :client_id',
+    sql: 'SELECT MAX(encounter_datetime) FROM encounter WHERE patient_id = :patient_id',
   },
   {
     label: 'Latest CD4 count',
-    sql: "SELECT value_numeric FROM obs WHERE client_id = :client_id AND concept_id = 5497 ORDER BY obs_datetime DESC LIMIT 1",
+    sql: "SELECT value_numeric FROM obs WHERE patient_id = :patient_id AND concept_id = 5497 ORDER BY obs_datetime DESC LIMIT 1",
   },
   {
     label: 'Current ART regimen',
-    sql: "SELECT value_text FROM obs WHERE client_id = :client_id AND concept_id = 1085 ORDER BY obs_datetime DESC LIMIT 1",
+    sql: "SELECT value_text FROM obs WHERE patient_id = :patient_id AND concept_id = 1085 ORDER BY obs_datetime DESC LIMIT 1",
   },
 ];
 
@@ -57,7 +57,7 @@ const CustomSqlColumnModal: React.FC<Props> = ({
   onClose,
   onSave,
   existingColumnNames = [],
-  idColumnAlias = 'client_id',
+  idColumnAlias = 'patient_id',
   primaryDatasourceName = '',
 }) => {
   const [name, setName] = useState('');
@@ -97,7 +97,7 @@ const CustomSqlColumnModal: React.FC<Props> = ({
     }
 
     // Warn (but allow) if SQL doesn't reference the patient/client ID
-    const paramPattern = /:(client_id|patient_id|clientId|patientId)\b/i;
+    const paramPattern = /:(patient_id|patient_id|clientId|patientId)\b/i;
     if (!paramPattern.test(sql)) {
       setError(
         `SQL should reference :${idColumnAlias} to return a value per patient. ` +
@@ -183,7 +183,7 @@ const CustomSqlColumnModal: React.FC<Props> = ({
         <TextArea
           id="custom-column-sql"
           labelText="SQL Expression *"
-          placeholder={`SELECT ... FROM ... WHERE client_id = :${idColumnAlias}`}
+          placeholder={`SELECT ... FROM ... WHERE patient_id = :${idColumnAlias}`}
           value={sql}
           onChange={(e) => {
             setSql((e.target as HTMLTextAreaElement).value);

@@ -56,7 +56,7 @@ const SQL_TEMPLATES: Array<{
     id: 'all_patients',
     label: 'All Patients',
     description: 'Select all patients registered in the system',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_patients_latest_patient_demographics
 WHERE 1=1
   AND :startDate <= :endDate`,
@@ -65,7 +65,7 @@ WHERE 1=1
     id: 'art_patients',
     label: 'ART Patients',
     description: 'Patients on ART treatment',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_patients_latest_patient_demographics
 WHERE art_start_date IS NOT NULL
   AND art_start_date BETWEEN :startDate AND :endDate`,
@@ -74,7 +74,7 @@ WHERE art_start_date IS NOT NULL
     id: 'new_art_patients',
     label: 'New ART Patients',
     description: 'Patients newly initiated on ART',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_patients_latest_patient_demographics
 WHERE art_start_date BETWEEN :startDate AND :endDate`,
   },
@@ -82,7 +82,7 @@ WHERE art_start_date BETWEEN :startDate AND :endDate`,
     id: 'encounter_patients',
     label: 'Patients with Encounters',
     description: 'Patients who had clinical encounters',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_encounter
 WHERE encounter_date BETWEEN :startDate AND :endDate`,
   },
@@ -90,7 +90,7 @@ WHERE encounter_date BETWEEN :startDate AND :endDate`,
     id: 'appointment_missed',
     label: 'Missed Appointments',
     description: 'Patients who missed appointments',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_appointment
 WHERE appointment_date BETWEEN :startDate AND :endDate
   AND attendance_status = 'Missed'`,
@@ -99,7 +99,7 @@ WHERE appointment_date BETWEEN :startDate AND :endDate
     id: 'due_vl',
     label: 'Due for Viral Load',
     description: 'Patients due for viral load testing',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_patients_latest_viral_load
 WHERE (
   last_vl_result IS NULL
@@ -112,7 +112,7 @@ AND :startDate <= :endDate`,
     id: 'high_vl',
     label: 'High Viral Load',
     description: 'Patients with viral load > 1000 copies',
-    sql: `SELECT DISTINCT client_id
+    sql: `SELECT DISTINCT patient_id
 FROM mamba_fact_patients_latest_viral_load
 WHERE last_vl_result > 1000
   AND last_vl_date BETWEEN :startDate AND :endDate`,
@@ -179,8 +179,8 @@ function validateSql(sql: string): { valid: boolean; errors: string[]; warnings:
   }
 
   // Check for patient_id column
-  if (!upperSql.includes('PATIENT_ID') && !upperSql.includes('CLIENT_ID')) {
-    warnings.push('SQL should select patient_id or client_id column');
+  if (!upperSql.includes('PATIENT_ID')) {
+    warnings.push('SQL should select patient_id column');
   }
 
   // Check for DISTINCT (recommended for patient lists)

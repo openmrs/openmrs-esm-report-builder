@@ -26,15 +26,15 @@ describe('CustomIndicatorInterpreter', () => {
 
     describe('Aliased CUSTOM count', () => {
       test('should extract population from aliased COUNT DISTINCT', () => {
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 FROM (
-    SELECT client_id FROM some_table
+    SELECT patient_id FROM some_table
 ) a
-INNER JOIN other_table o ON a.client_id = o.id`;
+INNER JOIN other_table o ON a.patient_id = o.id`;
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
         expect(result.success).toBe(true);
-        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.client_id\s+AS\s+patient_id/i);
+        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.patient_id\s+AS\s+patient_id/i);
         expect(result.sql).toContain('INNER JOIN other_table');
       });
     });
@@ -43,25 +43,25 @@ INNER JOIN other_table o ON a.client_id = o.id`;
       test('should preserve business logic for TX_RTT CD4 < 200', () => {
         // Simplified version to test basic COUNT DISTINCT to SELECT DISTINCT conversion
         // TODO: Improve regex to handle AS keywords in column lists
-        const input = `SELECT COUNT(DISTINCT a.client_id) FROM (SELECT client_id FROM mamba_fact_encounter_hiv_art_card WHERE encounter_date <= :endDate GROUP BY client_id) a WHERE a.some_column <= 28`;
+        const input = `SELECT COUNT(DISTINCT a.patient_id) FROM (SELECT patient_id FROM mamba_fact_encounter_hiv_art_card WHERE encounter_date <= :endDate GROUP BY patient_id) a WHERE a.some_column <= 28`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
         expect(result.success).toBe(true);
-        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.client_id\s+AS\s+patient_id/i);
+        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.patient_id\s+AS\s+patient_id/i);
 
         // Verify business logic is preserved
         expect(result.sql).toContain('WHERE encounter_date <= :endDate');
-        expect(result.sql).toContain('GROUP BY client_id');
+        expect(result.sql).toContain('GROUP BY patient_id');
         expect(result.sql).toContain('WHERE a.some_column <= 28');
       });
 
       test('should preserve TIMESTAMPDIFF expressions exactly', () => {
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 FROM (
-    SELECT client_id, TIMESTAMPDIFF(DAY, MAX(return_visit_date), DATE_SUB(:endDate, INTERVAL 3 MONTH)) AS ltfp_days
+    SELECT patient_id, TIMESTAMPDIFF(DAY, MAX(return_visit_date), DATE_SUB(:endDate, INTERVAL 3 MONTH)) AS ltfp_days
     FROM mamba_fact_encounter_hiv_art_card
-    GROUP BY client_id
+    GROUP BY patient_id
 ) a`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
@@ -74,9 +74,9 @@ FROM (
 
     describe('CD4 criteria', () => {
       test('should preserve CD4 < 200', () => {
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 FROM (
-    SELECT client_id FROM mamba_fact_encounter_hiv_art_card
+    SELECT patient_id FROM mamba_fact_encounter_hiv_art_card
     WHERE cd4 < 200
 ) a`;
 
@@ -87,9 +87,9 @@ FROM (
       });
 
       test('should preserve CD4 >= 200', () => {
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 FROM (
-    SELECT client_id FROM mamba_fact_encounter_hiv_art_card
+    SELECT patient_id FROM mamba_fact_encounter_hiv_art_card
     WHERE cd4 >= 200
 ) a`;
 
@@ -100,9 +100,9 @@ FROM (
       });
 
       test('should preserve CD4 IS NULL', () => {
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 FROM (
-    SELECT client_id FROM mamba_fact_encounter_hiv_art_card
+    SELECT patient_id FROM mamba_fact_encounter_hiv_art_card
     WHERE cd4 IS NULL
 ) a`;
 
@@ -114,9 +114,9 @@ FROM (
     });
 
     describe('Patient ID normalization', () => {
-      test('should normalize client_id to patient_id', () => {
+      test('should normalize patient_id to patient_id', () => {
         // Use a format that matches Pattern 1
-        const input = `SELECT COUNT(DISTINCT a.client_id) FROM (SELECT client_id FROM table_a) a`;
+        const input = `SELECT COUNT(DISTINCT a.patient_id) FROM (SELECT patient_id FROM table_a) a`;
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
         expect(result.success).toBe(true);
@@ -124,7 +124,7 @@ FROM (
       });
 
       test('should detect patient_id column from inner query', () => {
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 FROM (
     SELECT patient_id FROM some_table GROUP BY patient_id
 ) a`;
@@ -133,16 +133,16 @@ FROM (
 
         expect(result.success).toBe(true);
         // The interpreter normalizes to patient_id in the output SQL
-        // but tracks the source column (client_id from the COUNT expression)
-        expect(result.patientIdColumn).toBe('client_id');
+        // but tracks the source column (patient_id from the COUNT expression)
+        expect(result.patientIdColumn).toBe('patient_id');
         expect(result.sql).toContain('AS patient_id');
       });
     });
 
     describe('Already aggregated age/gender CUSTOM SQL', () => {
       test('should extract population from age_group disaggregated query', () => {
-        const input = `SELECT mda.datim_agegroup AS age_group, mdp.gender AS sex, COUNT(DISTINCT a.client_id) AS value
-FROM (SELECT client_id FROM table_a) a
+        const input = `SELECT mda.datim_agegroup AS age_group, mdp.gender AS sex, COUNT(DISTINCT a.patient_id) AS value
+FROM (SELECT patient_id FROM table_a) a
 GROUP BY age_group, sex`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
@@ -155,8 +155,8 @@ GROUP BY age_group, sex`;
       });
 
       test('should handle hardcoded age_group values like PWIDS', () => {
-        const input = `SELECT 'PWIDS' AS age_group, 'F' AS sex, COUNT(DISTINCT a.client_id) AS value
-FROM (SELECT client_id FROM table_a) a`;
+        const input = `SELECT 'PWIDS' AS age_group, 'F' AS sex, COUNT(DISTINCT a.patient_id) AS value
+FROM (SELECT patient_id FROM table_a) a`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
@@ -184,10 +184,10 @@ FROM (SELECT client_id FROM table_a) a`;
     describe('Invalid extraction', () => {
       test('should reject malformed generated identifiers', () => {
         // This simulates the bug where ltfp_days (a calculated column) was used as a table alias
-        const input = `SELECT COUNT(DISTINCT ltfp_days.client_id)
+        const input = `SELECT COUNT(DISTINCT ltfp_days.patient_id)
 FROM ...`;
 
-        // The pattern should not match because ltfp_days.client_id is not valid
+        // The pattern should not match because ltfp_days.patient_id is not valid
         // (ltfp_days is a column alias, not a table)
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
@@ -223,9 +223,9 @@ FROM ...`;
     describe('TX-RTT style disaggregated queries', () => {
       test('should extract population from TX-RTT style already-disaggregated query', () => {
         // This is the actual TX-RTT pattern with age_group, sex, and COUNT(DISTINCT)
-        const input = `SELECT mda.datim_agegroup AS age_group, mdp.gender AS sex, COUNT(DISTINCT a.client_id) AS value
-FROM (SELECT client_id, TIMESTAMPDIFF(DAY, MAX(return_visit_date), :endDate) AS ltfp_days FROM mamba_fact_encounter_hiv_art_card WHERE encounter_date <= :endDate GROUP BY client_id) a
-INNER JOIN mamba_fact_patients_latest_patient_demographics mdp ON a.client_id = mdp.patient_id
+        const input = `SELECT mda.datim_agegroup AS age_group, mdp.gender AS sex, COUNT(DISTINCT a.patient_id) AS value
+FROM (SELECT patient_id, TIMESTAMPDIFF(DAY, MAX(return_visit_date), :endDate) AS ltfp_days FROM mamba_fact_encounter_hiv_art_card WHERE encounter_date <= :endDate GROUP BY patient_id) a
+INNER JOIN mamba_fact_patients_latest_patient_demographics mdp ON a.patient_id = mdp.patient_id
 WHERE a.ltfp_days <= 28
 GROUP BY age_group, sex`;
 
@@ -279,7 +279,7 @@ GROUP BY age_group, sex`;
         // Create SQL that has both patient_id and age_group with AS
         // to test that age_group validation comes first
         const result = customIndicatorInterpreter.applyDisaggregation(
-          'SELECT DISTINCT mda.code AS age_group, a.client_id AS patient_id FROM table_a a',
+          'SELECT DISTINCT mda.code AS age_group, a.patient_id AS patient_id FROM table_a a',
           { ageCategoryCode: 'MOH_105_OPD_DIAG', genders: ['F', 'M'] },
         );
 
@@ -289,9 +289,9 @@ GROUP BY age_group, sex`;
 
     describe('Valid disaggregation', () => {
       test('should generate canonical disaggregation SQL', () => {
-        const populationSql = `SELECT DISTINCT a.client_id AS patient_id
+        const populationSql = `SELECT DISTINCT a.patient_id AS patient_id
 FROM (
-    SELECT client_id FROM mamba_fact_encounter_hiv_art_card
+    SELECT patient_id FROM mamba_fact_encounter_hiv_art_card
 ) a
 WHERE a.some_column = 'value'`;
 
@@ -315,7 +315,7 @@ WHERE a.some_column = 'value'`;
       });
 
       test('should use custom patient ID column from config', () => {
-        const populationSql = `SELECT DISTINCT a.client_id AS patient_id
+        const populationSql = `SELECT DISTINCT a.patient_id AS patient_id
 FROM table_a a`;
 
         const result = customIndicatorInterpreter.applyDisaggregation(
@@ -323,7 +323,7 @@ FROM table_a a`;
           { ageCategoryCode: 'MOH_105_OPD_DIAG', genders: ['F', 'M'] },
           {
             version: 1,
-            patientIdColumn: 'client_id',
+            patientIdColumn: 'patient_id',
             populationQuery: { extractFrom: 'configJson' },
             supportsRedisaggregation: true,
             redisaggregationStrategy: 'population-extraction',
@@ -332,20 +332,20 @@ FROM table_a a`;
         );
 
         // Should use the custom patient ID column
-        expect(result).toContain('ON mdp.client_id = base_pop.client_id');
+        expect(result).toContain('ON mdp.patient_id = base_pop.patient_id');
       });
 
       test('should preserve population business logic in base_pop', () => {
-        const populationSql = `SELECT DISTINCT a.client_id AS patient_id
+        const populationSql = `SELECT DISTINCT a.patient_id AS patient_id
 FROM (
     SELECT
-        client_id,
+        patient_id,
         TIMESTAMPDIFF(DAY, MAX(return_visit_date), :endDate) AS ltfp_days
     FROM mamba_fact_encounter_hiv_art_card
     WHERE encounter_date <= :endDate
-    GROUP BY client_id
+    GROUP BY patient_id
 ) a
-LEFT JOIN person p ON p.person_id = a.client_id
+LEFT JOIN person p ON p.person_id = a.patient_id
 WHERE a.ltfp_days <= 28 AND p.person_id IS NULL`;
 
         const result = customIndicatorInterpreter.applyDisaggregation(populationSql, {
@@ -363,7 +363,7 @@ WHERE a.ltfp_days <= 28 AND p.person_id IS NULL`;
 
     describe('Trailing semicolon handling', () => {
       test('should remove trailing semicolon from population SQL', () => {
-        const populationSql = `SELECT DISTINCT client_id AS patient_id FROM table_a;`;
+        const populationSql = `SELECT DISTINCT patient_id AS patient_id FROM table_a;`;
 
         const result = customIndicatorInterpreter.applyDisaggregation(populationSql, {
           ageCategoryCode: 'MOH_105_OPD_DIAG',
@@ -381,41 +381,41 @@ WHERE a.ltfp_days <= 28 AND p.person_id IS NULL`;
       test('should handle nested subqueries in inner query (TX_RTT CD4 >= 200 pattern)', () => {
         // This is the actual bug we're fixing - nested subqueries within the inner query
         // The inner query has LEFT JOIN with subqueries, DATE_SUB with INTERVAL, etc.
-        const input = `SELECT COUNT(DISTINCT a.client_id)
+        const input = `SELECT COUNT(DISTINCT a.patient_id)
 	FROM (
-	    SELECT client_id, TIMESTAMPDIFF(DAY, MAX(return_visit_date), :endDate) ltfp_days
+	    SELECT patient_id, TIMESTAMPDIFF(DAY, MAX(return_visit_date), :endDate) ltfp_days
 	    FROM mamba_fact_encounter_hiv_art_card
 	    WHERE encounter_date <= :endDate
 	      AND return_visit_date >= :startDate
-	    GROUP BY client_id
+	    GROUP BY patient_id
 	) a
-	INNER JOIN mamba_fact_patients_latest_patient_demographics mdp ON a.client_id = mdp.patient_id
-	LEFT JOIN (SELECT * FROM person p WHERE p.dead = 1 AND p.death_date <= :endDate) p ON a.client_id = p.person_id
+	INNER JOIN mamba_fact_patients_latest_patient_demographics mdp ON a.patient_id = mdp.patient_id
+	LEFT JOIN (SELECT * FROM person p WHERE p.dead = 1 AND p.death_date <= :endDate) p ON a.patient_id = p.person_id
 	LEFT JOIN (
-	    SELECT mf_to.client_id
+	    SELECT mf_to.patient_id
 	    FROM mamba_fact_transfer_out mf_to
-	    LEFT JOIN mamba_fact_transfer_in mf_ti ON mf_to.client_id = mf_ti.client_id
+	    LEFT JOIN mamba_fact_transfer_in mf_ti ON mf_to.patient_id = mf_ti.patient_id
 	    WHERE transfer_out_date <= :endDate
-	      AND (transfer_out_date > transfer_in_date OR mf_ti.client_id IS NULL)
-	) mfto ON a.client_id = mfto.client_id
+	      AND (transfer_out_date > transfer_in_date OR mf_ti.patient_id IS NULL)
+	) mfto ON a.patient_id = mfto.patient_id
 	INNER JOIN (
-	    SELECT DISTINCT a.client_id
+	    SELECT DISTINCT a.patient_id
 	    FROM (
-	        SELECT client_id,
+	        SELECT patient_id,
 	               TIMESTAMPDIFF(DAY, MAX(return_visit_date), DATE_SUB(:endDate, INTERVAL 3 MONTH)) ltfp_days
 	        FROM mamba_fact_encounter_hiv_art_card
 	        WHERE encounter_date <= DATE_SUB(:endDate, INTERVAL 3 MONTH)
 	          AND return_visit_date <= DATE_SUB(:endDate, INTERVAL 3 MONTH)
-	        GROUP BY client_id
+	        GROUP BY patient_id
 	    ) a
 	    WHERE a.ltfp_days <= 28
-	) filter_client ON a.client_id = filter_client.client_id`;
+	) filter_client ON a.patient_id = filter_client.patient_id`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
         // With balanced parenthesis matching, this should now succeed
         expect(result.success).toBe(true);
-        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.client_id\s+AS\s+patient_id/i);
+        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.patient_id\s+AS\s+patient_id/i);
 
         // Verify the complete inner query is preserved
         expect(result.sql).toContain('TIMESTAMPDIFF(DAY, MAX(return_visit_date), :endDate)');
@@ -423,8 +423,8 @@ WHERE a.ltfp_days <= 28 AND p.person_id IS NULL`;
 
         // Verify nested subqueries are preserved
         expect(result.sql).toContain('SELECT * FROM person p WHERE p.dead = 1');
-        expect(result.sql).toContain('SELECT mf_to.client_id');
-        expect(result.sql).toContain('SELECT DISTINCT a.client_id');
+        expect(result.sql).toContain('SELECT mf_to.patient_id');
+        expect(result.sql).toContain('SELECT DISTINCT a.patient_id');
 
         // Verify the most deeply nested subquery with DATE_SUB is preserved
         expect(result.sql).toContain('DATE_SUB(:endDate, INTERVAL 3 MONTH)');
@@ -432,20 +432,20 @@ WHERE a.ltfp_days <= 28 AND p.person_id IS NULL`;
 
       test('should handle deeply nested subqueries with INTERVAL expressions', () => {
         // Test with multiple levels of nesting and INTERVAL expressions
-        const input = `SELECT COUNT(DISTINCT base.client_id)
+        const input = `SELECT COUNT(DISTINCT base.patient_id)
 	FROM (
-	    SELECT DISTINCT a.client_id
+	    SELECT DISTINCT a.patient_id
 	    FROM (
-	        SELECT client_id
+	        SELECT patient_id
 	        FROM mamba_fact_encounter_hiv_art_card
 	        WHERE encounter_date <= DATE_SUB(:endDate, INTERVAL 3 MONTH)
-	        GROUP BY client_id
+	        GROUP BY patient_id
 	    ) a
 	    INNER JOIN (
-	        SELECT client_id, cd4_result
+	        SELECT patient_id, cd4_result
 	        FROM mamba_fact_lab_results
 	        WHERE test_date >= DATE_SUB(:endDate, INTERVAL 3 MONTH)
-	    ) lab ON a.client_id = lab.client_id
+	    ) lab ON a.patient_id = lab.patient_id
 	) base`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
@@ -460,26 +460,26 @@ WHERE a.ltfp_days <= 28 AND p.person_id IS NULL`;
       test('should handle TX_ML pattern with quoted parameters and extra column', () => {
         // This is the TX_ML pattern with:
         // 1. Quoted parameters like ':endDate' instead of :endDate
-        // 2. Extra column before COUNT: SELECT 'PWIDS', COUNT(DISTINCT a.client_id)
-        const input = `SELECT 'PWIDS', COUNT(DISTINCT a.client_id)
-FROM (SELECT a.client_id, return_date
-      FROM (SELECT client_id, MAX(return_visit_date) return_date
+        // 2. Extra column before COUNT: SELECT 'PWIDS', COUNT(DISTINCT a.patient_id)
+        const input = `SELECT 'PWIDS', COUNT(DISTINCT a.patient_id)
+FROM (SELECT a.patient_id, return_date
+      FROM (SELECT patient_id, MAX(return_visit_date) return_date
             FROM mamba_fact_encounter_hiv_art_card
             WHERE encounter_date <= ':endDate'
               AND return_visit_date >= DATE_SUB(':startDate', INTERVAL 3 MONTH)
-            GROUP BY client_id) a
+            GROUP BY patient_id) a
       WHERE TIMESTAMPDIFF(DAY, return_date, ':endDate') > 28
         AND TIMESTAMPDIFF(DAY, return_date, DATE_SUB(':endDate', INTERVAL 3 MONTH)) <= 28) a
-         INNER JOIN mamba_fact_patients_latest_patient_demographics mdp ON a.client_id = mdp.patient_id
-         INNER JOIN (SELECT client_id
+         INNER JOIN mamba_fact_patients_latest_patient_demographics mdp ON a.patient_id = mdp.patient_id
+         INNER JOIN (SELECT patient_id
                      FROM mamba_fact_encounter_hiv_art_summary
                      WHERE special_category = 'Current drug user') special_category
-                    ON a.client_id = special_category.client_id`;
+                    ON a.patient_id = special_category.patient_id`;
 
         const result = customIndicatorInterpreter.extractPopulationSql(input);
 
         expect(result.success).toBe(true);
-        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.client_id\s+AS\s+patient_id/i);
+        expect(result.sql).toMatch(/SELECT\s+DISTINCT\s+a\.patient_id\s+AS\s+patient_id/i);
 
         // Verify quoted parameters are converted to unquoted
         expect(result.sql).toMatch(/:endDate/);

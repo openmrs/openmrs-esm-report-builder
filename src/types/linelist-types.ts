@@ -1251,7 +1251,7 @@ function convertCountSqlToPopulationSql(countSql: string): string {
   if (withMatch) {
     const ctes = withMatch[1];
     const inner = withMatch[2].trim();
-    return `WITH ${ctes}\nSELECT DISTINCT pop.client_id\nFROM (\n  ${inner}\n) pop`;
+    return `WITH ${ctes}\nSELECT DISTINCT pop.patient_id\nFROM (\n  ${inner}\n) pop`;
   }
 
   // Case 3: Simple SELECT COUNT(*) AS total FROM ...
@@ -1266,11 +1266,11 @@ function convertCountSqlToPopulationSql(countSql: string): string {
     const tableAlias = fromMatch ? fromMatch[2] : 'a';
 
     // Detect the patient_id column name from the WHERE clause or JOIN conditions
-    // Common column names: patient_id, client_id, person_id
+    // Common column names: patient_id, patient_id, person_id
     const columnPatterns = [
-      /\b(?:${tableAlias}\.)?(patient_id|client_id|person_id)\b/i,
+      /\b(?:${tableAlias}\.)?(patient_id|patient_id|person_id)\b/i,
       // Also check JOIN conditions for column references
-      /ON\s+\w+\.(?:patient_id|client_id|person_id)\s*=\s*${tableAlias}\.(patient_id|client_id|person_id)/i,
+      /ON\s+\w+\.(?:patient_id|patient_id|person_id)\s*=\s*${tableAlias}\.(patient_id|patient_id|person_id)/i,
     ];
 
     let patientIdColumnName = 'patient_id'; // default
@@ -1283,7 +1283,7 @@ function convertCountSqlToPopulationSql(countSql: string): string {
     }
 
     // Use the detected column name consistently
-    return `SELECT DISTINCT ${tableAlias}.${patientIdColumnName} AS client_id ${afterCount}`.trim();
+    return `SELECT DISTINCT ${tableAlias}.${patientIdColumnName} AS patient_id ${afterCount}`.trim();
   }
 
   // Fallback: couldn't parse, return as-is (will likely fail in backend)
@@ -1320,7 +1320,7 @@ function combinePopulationSqls(parts: PopulationSqlPart[]): string {
   if (included.length === 0) {
     // If all are excluded, we need a different approach
     // Use all patients and subtract excluded ones
-    baseQuery = 'SELECT DISTINCT patient_id AS client_id FROM mamba_fact_patients_latest WHERE patient_id IS NOT NULL';
+    baseQuery = 'SELECT DISTINCT patient_id AS patient_id FROM mamba_fact_patients_latest WHERE patient_id IS NOT NULL';
   } else if (included.length === 1) {
     baseQuery = included[0];
   } else {
@@ -1374,7 +1374,7 @@ export function draftToConfig(
       if (!sql) return 'unknown';
       const trimmed = sql.trim();
       // Custom SQL query (per-row subquery)
-      if (/^SELECT\s/i.test(trimmed) || /:(patientId|client_id)\b/i.test(trimmed)) {
+      if (/^SELECT\s/i.test(trimmed) || /:(patientId|patient_id)\b/i.test(trimmed)) {
         return 'custom_sql';
       }
       // Simple table.column reference (with or without backticks)
@@ -1541,9 +1541,9 @@ export function draftToConfig(
         // Combine existing cohort SQL with indicator SQL
         const indicatorSql = buildIndicatorPopulationSql();
         if (indicatorSql && draft.population.sqlTemplate) {
-          return `SELECT DISTINCT base.patient_id AS client_id
+          return `SELECT DISTINCT base.patient_id AS patient_id
 FROM (${draft.population.sqlTemplate}) base
-INNER JOIN (${indicatorSql}) indicators ON indicators.client_id = base.patient_id`;
+INNER JOIN (${indicatorSql}) indicators ON indicators.patient_id = base.patient_id`;
         }
         return indicatorSql || draft.population.sqlTemplate || '';
       }
@@ -1876,9 +1876,9 @@ export function validateLinelistDraft(draft: LinelistReportDraft): LinelistValid
       errors.population = 'SQL must include a SELECT statement';
     }
 
-    // Check for patient_id or client_id column
-    if (!upperSql.includes('PATIENT_ID') && !upperSql.includes('CLIENT_ID')) {
-      errors.population = 'SQL must select patient_id or client_id column';
+    // Check for patient_id column
+    if (!upperSql.includes('PATIENT_ID')) {
+      errors.population = 'SQL must select patient_id or patient_id column';
     }
 
     // Recommend DISTINCT for patient grain

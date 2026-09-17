@@ -81,7 +81,7 @@ export default function CreateCustomIndicatorModal({
   const [sqlTemplate, setSqlTemplate] = useState('');
 
   // Population configuration
-  const [patientIdColumn, setPatientIdColumn] = useState<PatientIdColumn>('client_id');
+  const [patientIdColumn, setPatientIdColumn] = useState<PatientIdColumn>('patient_id');
   const [extractionMethod, setExtractionMethod] = useState<PopulationExtractionMethod>('sqlTemplate');
   const [configPath, setConfigPath] = useState('');
   const [customExtractor, setCustomExtractor] = useState('');
@@ -121,7 +121,7 @@ export default function CreateCustomIndicatorModal({
       setSqlTemplate(initial.sqlTemplate ?? sqlFromConfig ?? '');
 
       if (config) {
-        setPatientIdColumn(config.patientIdColumn ?? 'client_id');
+        setPatientIdColumn(config.patientIdColumn ?? 'patient_id');
         setExtractionMethod(config.populationQuery?.extractFrom ?? 'sqlTemplate');
         setConfigPath(config.populationQuery?.configPath ?? '');
         setCustomExtractor(config.populationQuery?.customExtractor ?? '');
@@ -137,7 +137,7 @@ export default function CreateCustomIndicatorModal({
       // Reset for create mode
       setBasics({ name: '', code: '', description: '' });
       setSqlTemplate('');
-      setPatientIdColumn('client_id');
+      setPatientIdColumn('patient_id');
       setExtractionMethod('sqlTemplate');
       setConfigPath('');
       setCustomExtractor('');
@@ -200,7 +200,7 @@ export default function CreateCustomIndicatorModal({
         errors.push(...(extractionResult.warnings || ['Could not extract population SQL']));
         if (!analysis.hasPopulationQuery) {
           errors.push('SQL does not contain a recognizable population query structure');
-          errors.push('Expected: SELECT COUNT(DISTINCT client_id) FROM (...) alias');
+          errors.push('Expected: SELECT COUNT(DISTINCT patient_id) FROM (...) alias');
         }
       }
 

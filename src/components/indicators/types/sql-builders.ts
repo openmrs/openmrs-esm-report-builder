@@ -30,7 +30,7 @@ SELECT
   COUNT(*) AS total
 FROM mamba_fact_encounter_diagnosis a
 JOIN mamba_fact_patients_latest_patient_demographics mdp
-  ON mdp.client_id = a.client_id
+  ON mdp.patient_id = a.patient_id
 WHERE a.date_created >= :startDate
   AND a.date_created < :endDate
   ${diagnosisClause(cfg.conceptIds)}

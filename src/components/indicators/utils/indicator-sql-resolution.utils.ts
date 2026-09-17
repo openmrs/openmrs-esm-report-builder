@@ -169,10 +169,10 @@ export function isSqlResolutionError(result: ResolvedIndicatorSql | SqlResolutio
  * 2. parsed.base.themeConfig.patientIdColumn
  * 3. parsed.authoring.base.themeConfig.patientIdColumn
  * 4. parsed.baseIndicator.themeConfig.patientIdColumn
- * 5. Default: 'client_id'
+ * 5. Default: 'patient_id'
  *
  * @param indicator - The indicator to extract patient ID column from
- * @returns The patient ID column name (defaults to 'client_id')
+ * @returns The patient ID column name (defaults to 'patient_id')
  */
 export function resolvePatientIdColumn(indicator: IndicatorDto): string {
     try {
@@ -186,9 +186,9 @@ export function resolvePatientIdColumn(indicator: IndicatorDto): string {
             null;
 
         const pid = cfg?.patientIdColumn;
-        return pid ? String(pid) : 'client_id';
+        return pid ? String(pid) : 'patient_id';
     } catch {
-        return 'client_id';
+        return 'patient_id';
     }
 }
 

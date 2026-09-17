@@ -638,7 +638,7 @@ export default function QueryConfigPanel({ draft, onDraftChange, availableFields
                   <TextArea
                     id="population-sql"
                     className={styles.sqlEditor}
-                    placeholder="SELECT DISTINCT patient_id AS client_id FROM your_table WHERE..."
+                    placeholder="SELECT DISTINCT patient_id AS patient_id FROM your_table WHERE..."
                     value={draft.population?.sqlTemplate || ''}
                     onChange={(e: any) => {
                       onDraftChange({
@@ -945,7 +945,7 @@ export default function QueryConfigPanel({ draft, onDraftChange, availableFields
                   <TextArea
                     id="population-sql-hybrid"
                     className={styles.sqlEditor}
-                    placeholder="SELECT DISTINCT patient_id AS client_id FROM your_table WHERE..."
+                    placeholder="SELECT DISTINCT patient_id AS patient_id FROM your_table WHERE..."
                     value={draft.population?.sqlTemplate || ''}
                     onChange={(e: any) => {
                       onDraftChange({

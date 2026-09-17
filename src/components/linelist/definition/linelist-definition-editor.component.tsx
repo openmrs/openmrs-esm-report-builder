@@ -232,7 +232,7 @@ function reportToDraft(report: LinelistReportDto): LinelistReportDraft {
       const colNameLower = col.name.toLowerCase();
       const sqlStr = defConfig?.sql || '';
       // Detect custom SQL (a full query, not a simple table.column reference)
-      const isCustomSql = /^\s*SELECT\s/i.test(sqlStr) || /:(patientId|client_id)\b/i.test(sqlStr);
+      const isCustomSql = /^\s*SELECT\s/i.test(sqlStr) || /:(patientId|patient_id)\b/i.test(sqlStr);
 
       // Determine source based on data definition type
       let source: ColumnSource;
@@ -279,7 +279,7 @@ function reportToDraft(report: LinelistReportDto): LinelistReportDraft {
           };
           tablesUsed.add(lookup.table);
         } else if (isCustomSql) {
-          // Custom SQL column - per-row query with :patientId / :client_id
+          // Custom SQL column - per-row query with :patientId / :patient_id
           source = {
             dataSourceUuid: lookup?.dataSourceUuid || primaryDataSourceUuid || 'custom_sql',
             dataSourceName: lookup?.dataSourceName || 'Custom SQL',
@@ -1156,7 +1156,7 @@ const LinelistBuilderWorkspace: React.FC<Props> = () => {
 
   /**
    * Handle adding a custom SQL column from the modal
-   * The SQL runs per-row and can reference :client_id / :patient_id
+   * The SQL runs per-row and can reference :patient_id / :patient_id
    */
   const handleAddCustomSqlColumn = useCallback((config: CustomSqlColumnConfig) => {
     // Prevent duplicate column names
@@ -1524,7 +1524,7 @@ function getDefaultOperator(fieldType: FilterFieldType): FilterOperator {
                     selectedFields={selectedFieldIds}
                     onAddCustomSqlColumn={handleAddCustomSqlColumn}
                     onAddDraftColumn={handleAddDraftColumn}
-                    idColumnAlias="client_id"
+                    idColumnAlias="patient_id"
                     showPopulationSelector={false}
                   />
                 </div>

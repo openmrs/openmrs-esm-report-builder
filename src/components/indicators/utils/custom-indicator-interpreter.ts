@@ -75,9 +75,9 @@ export class CustomIndicatorInterpreter {
             // Pattern 1: COUNT DISTINCT with FROM subquery
             /SELECT\s+COUNT\s*\(\s*DISTINCT\s+(\w+)\.?(\w+)\s*\)\s*FROM\s*\(\s*SELECT/i,
             // Pattern 2: Simple subquery with GROUP BY
-            /FROM\s*\(\s*SELECT\s+.*?GROUP\s+BY\s+(client_id|patient_id|person_id)/i,
+            /FROM\s*\(\s*SELECT\s+.*?GROUP\s+BY\s+(patient_id|patient_id|person_id)/i,
             // Pattern 3: Direct population query
-            /SELECT\s+DISTINCT\s+(client_id|patient_id|person_id)/i
+            /SELECT\s+DISTINCT\s+(patient_id|patient_id|person_id)/i
         ];
 
         for (const pattern of populationPatterns) {
@@ -113,7 +113,7 @@ export class CustomIndicatorInterpreter {
             // Death filter
             { name: 'death_filter', pattern: /p\.dead\s*=\s*1/i, type: 'WHERE' },
             // Transfer out filter
-            { name: 'transfer_out_filter', pattern: /mfto\.client_id\s+IS\s+NULL/i, type: 'WHERE' },
+            { name: 'transfer_out_filter', pattern: /mfto\.patient_id\s+IS\s+NULL/i, type: 'WHERE' },
             // Lost to follow-up filter
             { name: 'lost_filter', pattern: /ltfp_days\s*>\s*(?:\d+)/i, type: 'WHERE' },
             // Prison filter
@@ -180,13 +180,13 @@ export class CustomIndicatorInterpreter {
         processedSql = processedSql.replace(/':(\w+)'/g, ':$1');
 
         // Pattern 0: TX-RTT style with age_group/sex in SELECT, followed by COUNT(DISTINCT)
-        // SELECT ... AS age_group, ... AS sex, COUNT(DISTINCT a.client_id) AS value FROM (...) alias ...
+        // SELECT ... AS age_group, ... AS sex, COUNT(DISTINCT a.patient_id) AS value FROM (...) alias ...
         // This handles indicators like PWIDS that have additional SELECT columns before the COUNT
-        // Require GROUP BY client_id to avoid stopping at nested function calls like TIMESTAMPDIFF(...)
+        // Require GROUP BY patient_id to avoid stopping at nested function calls like TIMESTAMPDIFF(...)
         //
         // We use balanced parenthesis matching to handle nested subqueries correctly
         const txRttDisaggregatedPattern =
-            /SELECT\s+[\s\S]*?,\s*COUNT\s*\(\s*DISTINCT\s+(\w+)\.(\w+)\s*\)\s*(?:AS\s+\w+)?\s+FROM\s*\(\s*SELECT\s+client_id/i;
+            /SELECT\s+[\s\S]*?,\s*COUNT\s*\(\s*DISTINCT\s+(\w+)\.(\w+)\s*\)\s*(?:AS\s+\w+)?\s+FROM\s*\(\s*SELECT\s+patient_id/i;
         const txRttDisaggregatedMatch = processedSql.match(txRttDisaggregatedPattern);
 
         if (txRttDisaggregatedMatch) {
@@ -200,7 +200,7 @@ export class CustomIndicatorInterpreter {
             const balancedMatch = this.matchBalancedParens(processedSql, afterFromIndex);
 
             if (balancedMatch) {
-                const innerQuery = `SELECT client_id${balancedMatch.text}`.trim();
+                const innerQuery = `SELECT patient_id${balancedMatch.text}`.trim();
                 const afterInnerQuery = balancedMatch.endIndex;
 
                 // Extract the outer alias (should be right after the closing paren)
@@ -211,9 +211,9 @@ export class CustomIndicatorInterpreter {
                     const outerAlias = aliasMatch[1];
                     const restOfQuery = aliasMatch[2] || '';
 
-                    result.patientIdColumn = (columnName === 'client_id' || columnName === 'patient_id' || columnName === 'person_id')
+                    result.patientIdColumn = (columnName === 'patient_id' || columnName === 'patient_id' || columnName === 'person_id')
                         ? columnName as PatientIdColumn
-                        : 'client_id';
+                        : 'patient_id';
 
                     // Build population SQL by converting COUNT DISTINCT to SELECT DISTINCT
                     const cleanedRest = restOfQuery.replace(/GROUP\s+BY\s+[\s\S]*?;?\s*$/i, '').trim();
@@ -236,8 +236,8 @@ ${cleanedRest}`.trim();
 
         // Pattern 1: COUNT DISTINCT with FROM subquery that has JOINs
         // Handles both:
-        // - SELECT COUNT(DISTINCT a.client_id) FROM (SELECT ...) a
-        // - SELECT 'PWIDS', COUNT(DISTINCT a.client_id) FROM (SELECT ...) a
+        // - SELECT COUNT(DISTINCT a.patient_id) FROM (SELECT ...) a
+        // - SELECT 'PWIDS', COUNT(DISTINCT a.patient_id) FROM (SELECT ...) a
         // This is the most common pattern for CUSTOM indicators like TX_RTT, TX_ML
         //
         // We use balanced parenthesis matching to handle nested subqueries correctly
@@ -277,10 +277,10 @@ ${cleanedRest}`.trim();
                     });
 
                     // Determine the patient ID column from the COUNT expression
-                    // This normalizes client_id/patient_id/person_id to a standard patient_id
-                    result.patientIdColumn = (columnName === 'client_id' || columnName === 'patient_id' || columnName === 'person_id')
+                    // This normalizes patient_id/patient_id/person_id to a standard patient_id
+                    result.patientIdColumn = (columnName === 'patient_id' || columnName === 'patient_id' || columnName === 'person_id')
                         ? columnName as PatientIdColumn
-                        : 'client_id';
+                        : 'patient_id';
 
                     // Build population SQL by converting COUNT DISTINCT to SELECT DISTINCT
                     // We preserve ALL the business logic:
@@ -289,8 +289,8 @@ ${cleanedRest}`.trim();
                     // 3. All WHERE conditions from the outer query
                     //
                     // The only thing we change is the outer projection:
-                    // FROM: SELECT COUNT(DISTINCT a.client_id)
-                    // TO:   SELECT DISTINCT a.client_id AS patient_id
+                    // FROM: SELECT COUNT(DISTINCT a.patient_id)
+                    // TO:   SELECT DISTINCT a.patient_id AS patient_id
                     //
                     // This ensures we get patient-level rows, not a scalar count
 
@@ -314,13 +314,13 @@ ${cleanedRest}`.trim();
 
         // Pattern 2: Simple population query (already in correct format)
         // Handles both:
-        // - SELECT DISTINCT a.client_id AS patient_id FROM ...
-        // - SELECT DISTINCT a.client_id FROM (...) a ...
+        // - SELECT DISTINCT a.patient_id AS patient_id FROM ...
+        // - SELECT DISTINCT a.patient_id FROM (...) a ...
         // This is for indicators like PIPS and sqlPreview that already have population SQL structure
         const populationQueryPatterns = [
-            // Pattern 2a: With AS alias (SELECT DISTINCT a.client_id AS patient_id FROM ...)
-            /SELECT\s+DISTINCT\s+(\w+\.\w+)\s+AS\s+(?:patient_id|client_id)(?:\s+FROM\s+[\s\S]+)?/i,
-            // Pattern 2b: Without AS alias, followed by FROM (SELECT DISTINCT a.client_id FROM ...)
+            // Pattern 2a: With AS alias (SELECT DISTINCT a.patient_id AS patient_id FROM ...)
+            /SELECT\s+DISTINCT\s+(\w+\.\w+)\s+AS\s+(?:patient_id|patient_id)(?:\s+FROM\s+[\s\S]+)?/i,
+            // Pattern 2b: Without AS alias, followed by FROM (SELECT DISTINCT a.patient_id FROM ...)
             /SELECT\s+DISTINCT\s+(\w+\.\w+)\s+FROM\s+/i,
         ];
 
@@ -329,15 +329,15 @@ ${cleanedRest}`.trim();
             if (match && match[1]) {
                 console.log('✅ [Interpreter] Detected simple population query, using as-is');
                 // Extract patient ID column from the match
-                const columnRef = match[1]; // e.g., 'a.client_id'
+                const columnRef = match[1]; // e.g., 'a.patient_id'
                 const idColumn = columnRef.includes('.') ? columnRef.split('.')[1] : columnRef;
-                result.patientIdColumn = (idColumn === 'client_id' || idColumn === 'patient_id' || idColumn === 'person_id')
+                result.patientIdColumn = (idColumn === 'patient_id' || idColumn === 'patient_id' || idColumn === 'person_id')
                     ? idColumn as PatientIdColumn
-                    : 'client_id';
+                    : 'patient_id';
 
                 // If the SQL doesn't have an AS alias for the patient_id, add one for consistency
                 // This ensures the column name matches what applyDisaggregation expects
-                if (!/\s+AS\s+(?:patient_id|client_id)\s*FROM/i.test(processedSql)) {
+                if (!/\s+AS\s+(?:patient_id|patient_id)\s*FROM/i.test(processedSql)) {
                     // Add AS alias
                     result.sql = processedSql.replace(
                         new RegExp(`SELECT\\s+DISTINCT\\s+${columnRef.replace('.', '\\.')}\\s+FROM`, 'i'),
@@ -382,8 +382,8 @@ ${cleanedRest}`.trim();
                     const restOfQuery = aliasMatch[2] || '';
 
                     // Try to find patient_id column in the inner query
-                    const patientIdMatch = innerQuery.match(/(?:FROM|JOIN)\s+(\w+)\.(?:\w+)?\s+(?:\w+)\s+ON|(?:\w+\.)?(client_id|patient_id|person_id)/i);
-                    const patientIdColumn = patientIdMatch ? (patientIdMatch[1] || patientIdMatch[2]) as PatientIdColumn : 'client_id';
+                    const patientIdMatch = innerQuery.match(/(?:FROM|JOIN)\s+(\w+)\.(?:\w+)?\s+(?:\w+)\s+ON|(?:\w+\.)?(patient_id|patient_id|person_id)/i);
+                    const patientIdColumn = patientIdMatch ? (patientIdMatch[1] || patientIdMatch[2]) as PatientIdColumn : 'patient_id';
 
                     result.patientIdColumn = patientIdColumn;
                     // Reconstruct the population query including the JOINs and WHERE conditions
@@ -412,8 +412,8 @@ ${cleanedRest}`.trim();
             if (balancedMatch) {
                 const populationSql = balancedMatch.text.trim();
 
-                if (/GROUP\s+BY\s+(client_id|patient_id|person_id)/i.test(populationSql)) {
-                    const patientIdMatch = populationSql.match(/GROUP\s+BY\s+(client_id|patient_id|person_id)/i);
+                if (/GROUP\s+BY\s+(patient_id|patient_id|person_id)/i.test(populationSql)) {
+                    const patientIdMatch = populationSql.match(/GROUP\s+BY\s+(patient_id|patient_id|person_id)/i);
                     if (patientIdMatch) {
                         result.patientIdColumn = patientIdMatch[1] as PatientIdColumn;
                     }
@@ -446,7 +446,7 @@ ${cleanedRest}`.trim();
         result.warnings?.push('');
         result.warnings?.push('To fix this issue:');
         result.warnings?.push('  1. Add explicit populationSql to the indicator configJson:');
-        result.warnings?.push('     {"populationSql": "SELECT DISTINCT a.client_id AS patient_id FROM ..."}');
+        result.warnings?.push('     {"populationSql": "SELECT DISTINCT a.patient_id AS patient_id FROM ..."}');
         result.warnings?.push('  2. Ensure the SQL follows one of the recognized patterns above');
         result.warnings?.push('  3. Contact administrator if the SQL structure is correct but not recognized');
 
@@ -494,7 +494,7 @@ ${cleanedRest}`.trim();
 
         // Validation: Check if SQL exposes patient_id column
         const hasPatientId = /patient_id\s*(?:AS|FROM|$)/i.test(sql) ||
-                             /(?:client_id|person_id)\s+AS\s+patient_id/i.test(sql);
+                             /(?:patient_id|person_id)\s+AS\s+patient_id/i.test(sql);
 
         if (!hasPatientId) {
             return `-- Error: CUSTOM_PATIENT_ID_MISSING
@@ -630,7 +630,7 @@ ORDER BY ag.sort_order, g.gender;`.trim();
      */
     private detectPatientIdColumn(sql: string): PatientIdColumn {
         const patterns = [
-            { column: 'client_id' as PatientIdColumn, pattern: /\bclient_id\b/i },
+            { column: 'patient_id' as PatientIdColumn, pattern: /\bpatient_id\b/i },
             { column: 'patient_id' as PatientIdColumn, pattern: /\bpatient_id\b/i },
             { column: 'person_id' as PatientIdColumn, pattern: /\bperson_id\b/i }
         ];
@@ -643,7 +643,7 @@ ORDER BY ag.sort_order, g.gender;`.trim();
 
         // Return the most common patient ID column
         const mostCommon = counts.sort((a, b) => b.count - a.count)[0];
-        return mostCommon.count > 0 ? mostCommon.column : 'client_id';
+        return mostCommon.count > 0 ? mostCommon.column : 'patient_id';
     }
 
     /**

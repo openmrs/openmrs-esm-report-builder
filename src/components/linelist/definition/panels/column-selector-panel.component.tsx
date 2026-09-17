@@ -144,7 +144,7 @@ const DATA_DEFINITION_TYPES: Array<{
  * Common SQL column templates
  */
 const SQL_TEMPLATES: Record<string, string> = {
-  'client_id': 'client_id',
+  'patient_id': 'patient_id',
   'given_name': 'given_name',
   'family_name': 'family_name',
   'gender': 'gender',

@@ -340,7 +340,7 @@ function compileSimpleReference(
     const isDateColumn = colMeta?.type === 'DATE' || lowerField.includes('date');
 
     // Build per-row subquery
-    let subquery = `SELECT e.${field} FROM ${table} e WHERE e.client_id = :patientId`;
+    let subquery = `SELECT e.${field} FROM ${table} e WHERE e.patient_id = :patientId`;
 
     // Add voided filter for encounter/observation tables
     if (/encounter|obs|visit|appointment/i.test(table)) {

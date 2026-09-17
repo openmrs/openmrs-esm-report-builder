@@ -266,7 +266,7 @@ export async function buildSectionDisaggregationSqlAsync({
                         // Create a basic config from available data
                         customConfig = {
                             version: 1,
-                            patientIdColumn: parsed?.patientIdColumn || parsed?.themeConfig?.patientIdColumn || 'client_id',
+                            patientIdColumn: parsed?.patientIdColumn || parsed?.themeConfig?.patientIdColumn || 'patient_id',
                             populationQuery: hasSqlPreview ? { extractFrom: 'configJson' as const } : { extractFrom: 'sqlTemplate' as const },
                             supportsRedisaggregation: true,
                             redisaggregationStrategy: 'population-extraction',
@@ -416,7 +416,7 @@ function extractPopulationSqlFromComplexIndicator(sql: string): string | null {
     if (!sql) return null;
 
     // Pattern 1: COUNT DISTINCT with FROM subquery that has JOINs and WHERE
-    // SELECT COUNT(DISTINCT a.client_id) FROM (SELECT ...) a LEFT JOIN ... WHERE ...
+    // SELECT COUNT(DISTINCT a.patient_id) FROM (SELECT ...) a LEFT JOIN ... WHERE ...
     // Use balanced parenthesis matching to handle nested subqueries
     const countDistinctFromPattern = /SELECT\s+COUNT\s*\(\s*DISTINCT\s+\w+\.?\w*\s*\)\s*FROM\s*\(\s*SELECT/i;
     const countDistinctMatch = sql.match(countDistinctFromPattern);
@@ -440,14 +440,14 @@ function extractPopulationSqlFromComplexIndicator(sql: string): string | null {
                 const alias = aliasMatch[1];
                 const restOfQuery = aliasMatch[2] || '';
 
-                // Check if the inner query has GROUP BY client_id or similar
-                if (/GROUP\s+BY\s+(client_id|patient_id|person_id)/i.test(populationSql)) {
+                // Check if the inner query has GROUP BY patient_id or similar
+                if (/GROUP\s+BY\s+(patient_id|patient_id|person_id)/i.test(populationSql)) {
                     // Build the full population query including JOINs and WHERE
                     // Replace the alias references in JOINs and WHERE with the actual table
-                    let fullPopulationSql = `SELECT DISTINCT ${alias}.client_id AS patient_id\nFROM (\n  ${indent(populationSql, 2)}\n) ${alias}\n${restOfQuery.trim()}`;
+                    let fullPopulationSql = `SELECT DISTINCT ${alias}.patient_id AS patient_id\nFROM (\n  ${indent(populationSql, 2)}\n) ${alias}\n${restOfQuery.trim()}`;
 
                     // Fix column references in rest of query
-                    fullPopulationSql = fullPopulationSql.replace(new RegExp(`${alias}\\.client_id`, 'g'), 'patient_id');
+                    fullPopulationSql = fullPopulationSql.replace(new RegExp(`${alias}\\.patient_id`, 'g'), 'patient_id');
 
                     return fullPopulationSql;
                 }
@@ -456,7 +456,7 @@ function extractPopulationSqlFromComplexIndicator(sql: string): string | null {
     }
 
     // Pattern 2: Simple FROM subquery (for backward compatibility)
-    // FROM (SELECT ... GROUP BY client_id) alias
+    // FROM (SELECT ... GROUP BY patient_id) alias
     const fromSubqueryPattern = /FROM\s*\(\s*SELECT/i;
     const fromMatch = sql.match(fromSubqueryPattern);
 
@@ -476,8 +476,8 @@ function extractPopulationSqlFromComplexIndicator(sql: string): string | null {
             const aliasMatch = sql.substring(afterInnerQuery).match(aliasPattern);
 
             if (aliasMatch) {
-                // Check if it has GROUP BY client_id or similar
-                if (/GROUP\s+BY\s+(client_id|patient_id|person_id)/i.test(populationSql)) {
+                // Check if it has GROUP BY patient_id or similar
+                if (/GROUP\s+BY\s+(patient_id|patient_id|person_id)/i.test(populationSql)) {
                     // This looks like a valid population query
                     return populationSql;
                 }
@@ -500,16 +500,16 @@ function extractPopulationSqlFromComplexIndicator(sql: string): string | null {
         if (balancedMatch) {
             const populationSql = `SELECT${balancedMatch.text}`.trim();
 
-            // Check if it has GROUP BY client_id or similar
-            if (/GROUP\s+BY\s+(client_id|patient_id|person_id)/i.test(populationSql)) {
+            // Check if it has GROUP BY patient_id or similar
+            if (/GROUP\s+BY\s+(patient_id|patient_id|person_id)/i.test(populationSql)) {
                 return populationSql;
             }
         }
     }
 
     // Pattern 4: Look for the core population query pattern
-    // SELECT client_id, ... FROM table WHERE ... GROUP BY client_id
-    const corePattern = /SELECT\s+(client_id|patient_id|person_id)[\s\S]*?FROM\s+[\w_]+[\s\S]*?GROUP\s+BY\s+(client_id|patient_id|person_id)/i;
+    // SELECT patient_id, ... FROM table WHERE ... GROUP BY patient_id
+    const corePattern = /SELECT\s+(patient_id|patient_id|person_id)[\s\S]*?FROM\s+[\w_]+[\s\S]*?GROUP\s+BY\s+(patient_id|patient_id|person_id)/i;
     const coreMatch = sql.match(corePattern);
 
     if (coreMatch) {
@@ -586,7 +586,7 @@ function tryGetPopulationSql(indicator: IndicatorDto): string | null {
             return extractedPopulationSql;
         }
         // If extraction fails, return an error message
-        return `-- Error: Could not extract population SQL from this complex indicator.\n-- Indicator: ${indicator.name} (${indicator.code})\n-- Complex indicators with multiple GROUP BY clauses or age_group/gender aggregation need to have a clear population query structure.\n-- Ensure the indicator has a subquery with: SELECT client_id FROM ... GROUP BY client_id`;
+        return `-- Error: Could not extract population SQL from this complex indicator.\n-- Indicator: ${indicator.name} (${indicator.code})\n-- Complex indicators with multiple GROUP BY clauses or age_group/gender aggregation need to have a clear population query structure.\n-- Ensure the indicator has a subquery with: SELECT patient_id FROM ... GROUP BY patient_id`;
     }
 
     // Remove trailing semicolons - they cause "Multiple statements" errors when used in CTEs
@@ -600,7 +600,7 @@ function tryGetPopulationSql(indicator: IndicatorDto): string | null {
     fixed = fixed.replace(/:stratDate\b/g, ':startDate');
 
     // Check if it's already a population query
-    if (/SELECT\s+DISTINCT\s+(?:\w+\.?client_id|client_id)/i.test(fixed)) {
+    if (/SELECT\s+DISTINCT\s+(?:\w+\.?patient_id|patient_id)/i.test(fixed)) {
         return fixed;
     }
 

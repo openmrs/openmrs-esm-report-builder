@@ -374,7 +374,7 @@ type Props = {
   /** Callback to add a draft column (for observation/diagnosis columns) */
   onAddDraftColumn?: (column: LinelistColumnDraft) => void;
   /** The patient/client ID column alias used by the base cohort SQL */
-  idColumnAlias?: 'client_id' | 'patient_id';
+  idColumnAlias?: 'patient_id' | 'patient_id';
 };
 
 /**
@@ -409,7 +409,7 @@ const DataCatalogue: React.FC<Props> = ({
   disabled = false,
   onAddCustomSqlColumn,
   onAddDraftColumn,
-  idColumnAlias = 'client_id',
+  idColumnAlias = 'patient_id',
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);

@@ -135,7 +135,7 @@ export default function DataThemeSourceSection({ open, config, onChange }: Props
             >
                 <Select
                     id="theme-patient-id-col"
-                    labelText="client_id column"
+                    labelText="patient_id column"
                     value={config.patientIdColumn || ''}
                     disabled={!canPickCols}
                     onChange={(e) => onChange({ ...config, patientIdColumn: (e.target as HTMLSelectElement).value })}

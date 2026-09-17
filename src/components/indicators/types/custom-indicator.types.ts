@@ -8,7 +8,7 @@
 /**
  * Patient identification column types
  */
-export type PatientIdColumn = 'client_id' | 'patient_id' | 'person_id';
+export type PatientIdColumn = 'patient_id' | 'patient_id' | 'person_id';
 
 /**
  * Population query extraction methods

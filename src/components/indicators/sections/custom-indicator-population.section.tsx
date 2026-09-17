@@ -15,7 +15,7 @@ type Props = {
 };
 
 const PATIENT_ID_OPTIONS = [
-  { id: 'client_id', label: 'client_id' },
+  { id: 'patient_id', label: 'patient_id' },
   { id: 'patient_id', label: 'patient_id' },
   { id: 'person_id', label: 'person_id' },
 ];

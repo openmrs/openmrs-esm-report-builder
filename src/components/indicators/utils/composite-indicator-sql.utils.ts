@@ -5,12 +5,12 @@ export type CountSqlSource = SqlSource;
 
 export function idFieldForUnit(unit: 'Patients' | 'Encounters', overrideColumn?: string) {
     if (overrideColumn) return overrideColumn;
-    return unit === 'Encounters' ? 'encounter_id' : 'client_id';
+    return unit === 'Encounters' ? 'encounter_id' : 'patient_id';
 }
 
 /**
  * Extract patientIdColumn from stored authoring (if present),
- * otherwise fallback to "client_id".
+ * otherwise fallback to "patient_id".
  *
  * @deprecated Use resolvePatientIdColumn from indicator-sql-resolution.utils.ts instead.
  * This function is maintained for backward compatibility but delegates to the centralized implementation.
@@ -87,7 +87,7 @@ function extractTableAlias(sql: string): string | null {
  *  B) Composite-style COUNT SQL:
  *     WITH A AS (...), B AS (...)
  *     SELECT COUNT(*) AS total
- *     FROM ( SELECT A.client_id ... ) X;
+ *     FROM ( SELECT A.patient_id ... ) X;
  *
  * For composite-style, we MUST preserve the WITH ... prefix,
  * otherwise the resulting query references A/B without defining them.
@@ -115,12 +115,12 @@ export function countSqlToPopulationSql(sql: string, idColumn: string, unit: 'Pa
     const distinctPatternNoAlias = /SELECT\s+COUNT\s*\(\s*DISTINCT\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*\)\s+FROM/i;
     const distinctMatchNoAlias = noSemi.match(distinctPatternNoAlias);
     if (distinctMatchNoAlias) {
-        const columnRef = distinctMatchNoAlias[1]; // e.g., "a.client_id" or "client_id"
+        const columnRef = distinctMatchNoAlias[1]; // e.g., "a.patient_id" or "patient_id"
         // Get everything after "SELECT COUNT(DISTINCT ...) FROM " to preserve FROM, WHERE, JOINs, etc.
         const fromIdx = distinctMatchNoAlias[0].length - 5; // -5 to account for " FROM" that we'll replace
         const afterSelect = noSemi.substring(fromIdx).trim();
 
-        // If column is already qualified (e.g., "a.client_id"), use it as-is
+        // If column is already qualified (e.g., "a.patient_id"), use it as-is
         if (columnRef.includes('.')) {
             const result = `SELECT DISTINCT ${columnRef} AS ${idField} ${afterSelect}`.trim();
             return validatePopulationSqlOutput(result, idField);
@@ -140,12 +140,12 @@ export function countSqlToPopulationSql(sql: string, idColumn: string, unit: 'Pa
     const distinctPattern = /SELECT\s+COUNT\s*\(\s*DISTINCT\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*\)\s+AS\s+(\w+)\s*/i;
     const distinctMatch = noSemi.match(distinctPattern);
     if (distinctMatch) {
-        const columnRef = distinctMatch[1]; // e.g., "a.client_id" or "client_id"
+        const columnRef = distinctMatch[1]; // e.g., "a.patient_id" or "patient_id"
         // Get everything after "SELECT COUNT(DISTINCT ...) AS alias "
         // This preserves FROM, WHERE, JOINs, etc.
         const afterSelect = noSemi.substring(distinctMatch[0].length);
 
-        // If column is already qualified (e.g., "a.client_id"), use it as-is
+        // If column is already qualified (e.g., "a.patient_id"), use it as-is
         // Always add the AS alias for consistency
         if (columnRef.includes('.')) {
             const result = `SELECT DISTINCT ${columnRef} AS ${idField} ${afterSelect}`.trim();
@@ -347,7 +347,7 @@ function extractAndRenameCtes(sql: string, prefix: string): { ctes: string; main
 
 /**
  * Build composite COUNT SQL from two population queries.
- * Population queries MUST return a column named client_id or encounter_id.
+ * Population queries MUST return a column named patient_id or encounter_id.
  *
  * Handles the case where population queries themselves contain WITH clauses
  * (composite indicators) by extracting and renaming inner CTEs to avoid conflicts.

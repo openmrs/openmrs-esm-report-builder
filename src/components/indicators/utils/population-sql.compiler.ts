@@ -24,7 +24,7 @@ import type { CompositeOperator } from '../types/composite-indicator.types';
 export type PopulationCompileResult = {
     /** The population SQL that returns the patient ID column */
     sql: string;
-    /** The column name used for patient identification (e.g., 'client_id', 'patient_id', 'encounter_id') */
+    /** The column name used for patient identification (e.g., 'patient_id', 'patient_id', 'encounter_id') */
     patientIdColumn: string;
     /** Any warnings or information about the compilation */
     warnings?: string[];
@@ -309,7 +309,7 @@ export function clearCompilationCache(): void {
  * @param getIndicator - Function to fetch referenced indicators by UUID
  * @param visited - Set of already-visited indicator UUIDs (for cycle detection)
  * @param options - Compiler options
- * @returns Population SQL that returns client_id
+ * @returns Population SQL that returns patient_id
  */
 export async function compilePopulationSql(
     indicator: IndicatorDto,
@@ -508,7 +508,7 @@ function combineWithOperator(
     const bName = bHasWith ? 'operand_b_base' : 'B';
 
     if (operator === 'AND') {
-        // Intersection: A INNER JOIN B on client_id
+        // Intersection: A INNER JOIN B on patient_id
         return `
 WITH ${aName} AS (
 ${indent(cleanA, 0)}
@@ -584,7 +584,7 @@ function compileBasePopulation(
     // Fix common typos
     sql = fixCommonTypos(sql);
 
-    // Get the patient ID column from config (e.g., 'client_id' for HIV indicators)
+    // Get the patient ID column from config (e.g., 'patient_id' for HIV indicators)
     const patientIdColumn = getPatientIdColumnFromConfig(config);
 
     // Convert COUNT SQL to population SQL if needed
@@ -614,7 +614,7 @@ function compileBasePopulation(
 
 /**
  * Get the patient ID column from indicator config.
- * Defaults to 'client_id' if not specified.
+ * Defaults to 'patient_id' if not specified.
  */
 function getPatientIdColumnFromConfig(config: CompositeIndicatorConfig | null): string {
     try {
@@ -625,9 +625,9 @@ function getPatientIdColumnFromConfig(config: CompositeIndicatorConfig | null): 
             config?.baseIndicator?.themeConfig ||
             null;
         const pid = cfg?.patientIdColumn;
-        return pid ? String(pid) : 'client_id';
+        return pid ? String(pid) : 'patient_id';
     } catch {
-        return 'client_id';
+        return 'patient_id';
     }
 }
 
@@ -636,12 +636,12 @@ function getPatientIdColumnFromConfig(config: CompositeIndicatorConfig | null): 
  *
  * This handles the case where a base indicator has COUNT(*) SQL
  * or COUNT(DISTINCT column) SQL and needs to be converted to return
- * patient_id or client_id instead.
+ * patient_id or patient_id instead.
  *
  * IMPORTANT: The output column is ALWAYS aliased as the patientIdColumn value
- * (e.g., 'client_id' or 'patient_id') for consistency with downstream queries.
+ * (e.g., 'patient_id' or 'patient_id') for consistency with downstream queries.
  */
-function convertCountToPopulation(sql: string, patientIdColumn: string = 'client_id'): string {
+function convertCountToPopulation(sql: string, patientIdColumn: string = 'patient_id'): string {
     let trimmed = sql.trim();
 
     // Handle escaped newlines BEFORE pattern matching
@@ -651,9 +651,9 @@ function convertCountToPopulation(sql: string, patientIdColumn: string = 'client
     // Remove any trailing semicolons first (they cause issues when used as CTE)
     const withoutSemicolon = trimmed.replace(/;+\s*$/, '');
 
-    // Check if it's already a population query (SELECT DISTINCT with patient_id, client_id, or encounter_id)
+    // Check if it's already a population query (SELECT DISTINCT with patient_id, patient_id, or encounter_id)
     const populationCheck = new RegExp(
-        `SELECT\\s+DISTINCT\\s+(?:\\w+\\.)?(?:${patientIdColumn}|client_id|patient_id|encounter_id)`,
+        `SELECT\\s+DISTINCT\\s+(?:\\w+\\.)?(?:${patientIdColumn}|patient_id|patient_id|encounter_id)`,
         'i'
     );
     if (populationCheck.test(withoutSemicolon)) {
@@ -664,12 +664,12 @@ function convertCountToPopulation(sql: string, patientIdColumn: string = 'client
         if (aliasCheck.test(fixed)) {
             return fixed;
         }
-        // Fix the alias to normalize to patient_id (handles client_id, encounter_id, etc.)
-        // Handles both qualified (a.client_id) and unqualified (client_id) column references,
+        // Fix the alias to normalize to patient_id (handles patient_id, encounter_id, etc.)
+        // Handles both qualified (a.patient_id) and unqualified (patient_id) column references,
         // with or without an existing alias. The contract requires EVERY population SQL to
         // expose patient_id, otherwise combineWithOperator/disaggregation reference a column
         // the CTE does not expose.
-        const replacePattern = /SELECT\s+DISTINCT\s+(?:(\w+)\.)?(client_id|patient_id|encounter_id)(?:\s+AS\s+\w+)?/i;
+        const replacePattern = /SELECT\s+DISTINCT\s+(?:(\w+)\.)?(patient_id|patient_id|encounter_id)(?:\s+AS\s+\w+)?/i;
         return fixed.replace(
             replacePattern,
             (_match, tableAlias: string | undefined, column: string) =>
@@ -677,12 +677,12 @@ function convertCountToPopulation(sql: string, patientIdColumn: string = 'client
         );
     }
 
-    // Check for COUNT(DISTINCT column) pattern - e.g., SELECT COUNT(DISTINCT a.client_id) AS total FROM ...
-    // Also handles patterns without AS or with subqueries: SELECT COUNT(DISTINCT a.client_id) FROM (...)
-    const countDistinctPattern = /SELECT\s+COUNT\s*\(\s*DISTINCT\s+(\w+\.(?:client_id|patient_id|encounter_id))\s*\)(?:\s+AS\s+\w+)?\s+FROM/i;
+    // Check for COUNT(DISTINCT column) pattern - e.g., SELECT COUNT(DISTINCT a.patient_id) AS total FROM ...
+    // Also handles patterns without AS or with subqueries: SELECT COUNT(DISTINCT a.patient_id) FROM (...)
+    const countDistinctPattern = /SELECT\s+COUNT\s*\(\s*DISTINCT\s+(\w+\.(?:patient_id|patient_id|encounter_id))\s*\)(?:\s+AS\s+\w+)?\s+FROM/i;
     const countDistinctMatch = withoutSemicolon.match(countDistinctPattern);
     if (countDistinctMatch) {
-        const columnReference = countDistinctMatch[1]; // e.g., "a.client_id"
+        const columnReference = countDistinctMatch[1]; // e.g., "a.patient_id"
         // Extract just the column name without the alias
         const columnName = columnReference.split('.').pop()!;
         const alias = columnReference.split('.')[0];
@@ -690,7 +690,7 @@ function convertCountToPopulation(sql: string, patientIdColumn: string = 'client
         // Replace with SELECT DISTINCT alias.columnName AS patient_id FROM
         // Keep the rest of the SQL after FROM (including subqueries)
         const result = withoutSemicolon.replace(
-            /SELECT\s+COUNT\s*\(\s*DISTINCT\s+\w+\.(?:client_id|patient_id|encounter_id)\s*\)(?:\s+AS\s+\w+)?\s+FROM/i,
+            /SELECT\s+COUNT\s*\(\s*DISTINCT\s+\w+\.(?:patient_id|patient_id|encounter_id)\s*\)(?:\s+AS\s+\w+)?\s+FROM/i,
             `SELECT DISTINCT ${alias}.${columnName} AS patient_id FROM`
         );
 
