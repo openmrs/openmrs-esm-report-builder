@@ -264,20 +264,20 @@ describe('Population SQL Compiler', () => {
       expect(result.sql).toContain('WHERE B.patient_id IS NULL');
     });
 
-    it('should normalize qualified leaf columns (a.patient_id AS patient_id) to the patient_id contract', async () => {
+    it('should normalize qualified leaf columns (a.encounter_id AS encounter_id) to the patient_id contract', async () => {
       // Mirrors real saved indicators, which use qualified refs with an existing alias
       const indicatorA = createIndicator({
         uuid: 'indicator-a',
         code: 'A',
         kind: 'BASE',
-        sqlTemplate: 'SELECT DISTINCT a.patient_id AS patient_id FROM fact_a a WHERE a.x = 1',
+        sqlTemplate: 'SELECT DISTINCT a.encounter_id AS encounter_id FROM fact_a a WHERE a.x = 1',
       });
 
       const indicatorB = createIndicator({
         uuid: 'indicator-b',
         code: 'B',
         kind: 'BASE',
-        sqlTemplate: 'SELECT DISTINCT b.patient_id AS patient_id FROM fact_b b WHERE b.y = 2',
+        sqlTemplate: 'SELECT DISTINCT b.encounter_id AS encounter_id FROM fact_b b WHERE b.y = 2',
       });
 
       const composite = createIndicator({
@@ -302,13 +302,13 @@ describe('Population SQL Compiler', () => {
       const result = await compilePopulationSql(composite, getIndicator);
 
       // Leaves are aliased to the contract column...
-      expect(result.sql).toMatch(/SELECT DISTINCT a\.patient_id AS patient_id/);
-      expect(result.sql).toMatch(/SELECT DISTINCT b\.patient_id AS patient_id/);
+      expect(result.sql).toMatch(/SELECT DISTINCT a\.encounter_id AS patient_id/);
+      expect(result.sql).toMatch(/SELECT DISTINCT b\.encounter_id AS patient_id/);
 
-      // ...and every CTE reference uses it — no dangling patient_id refs on A/B
+      // ...and every CTE reference uses it — no dangling encounter_id refs on A/B
       expect(result.sql).toContain('ON B.patient_id = A.patient_id');
       expect(result.sql).toContain('WHERE B.patient_id IS NULL');
-      expect(result.sql).not.toMatch(/\b[AB]\.patient_id\b/);
+      expect(result.sql).not.toMatch(/\b[AB]\.encounter_id\b/);
     });
   });
 
