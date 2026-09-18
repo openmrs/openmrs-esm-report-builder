@@ -1,8 +1,8 @@
 {
-  "reportBuilder": "Report builder",
-  "openReportBuilder": "Open report builder",
-  "dataVisualizer": "Data visualizer",
-  "home": "Home",
+  "reportBuilder": "Creador de informes",
+  "openReportBuilder": "Abrir creador de informes ",
+  "dataVisualizer": "Visualizador de datos",
+  "home": "Inicio",
   "searchThisList": "Search this list",
   "No data": "No data to display",
   "type_of_report": "Type of report",
