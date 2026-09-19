@@ -2635,7 +2635,7 @@ __metadata:
     sass: "npm:^1.83.0"
     single-spa: "npm:^6.0.3"
     single-spa-react: "npm:^6.0.2"
-    swr: "npm:^2.2.5"
+    swr: "npm:2.5.1"
     typescript: "npm:5.5.4"
     uuid: "npm:^11.1.0"
     vitest: "npm:^4.1.2"
@@ -16290,7 +16290,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"swr@npm:2.5.1, swr@npm:^2.2.5":
+"swr@npm:2.5.1":
   version: 2.5.1
   resolution: "swr@npm:2.5.1"
   dependencies:
