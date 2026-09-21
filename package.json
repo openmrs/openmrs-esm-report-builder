@@ -44,7 +44,7 @@
     "react-stately": "^3.42.0",
     "sass": "^1.83.0",
     "single-spa-react": "^6.0.2",
-    "swr": "^2.2.5",
+    "swr": "2.5.1",
     "uuid": "^11.1.0",
     "zustand": "^4.5.7"
   },
