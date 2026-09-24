@@ -26,10 +26,14 @@ export type DesignRow = {
     span?: 'all' | 'label-only';
     emphasis?: 'section' | 'group' | 'normal' | 'summary';
 
-    // Positional tracking for hierarchical structure
-    parentId?: string;              // ID of the parent row (for items indented under group-labels)
-    position?: number;             // Position within the group (0-indexed)
-    children?: string[];            // IDs of child rows (explicit tracking for group-labels)
+    /**
+     * Derived, not hand-edited: recomputed from row order + indent whenever
+     * rows change (see withDerivedGroupingParents). Points at the nearest
+     * enclosing group-label row (groups may nest); rows belonging directly
+     * to the section have no groupingParentId. Not read by the backend
+     * compiler — layout is driven by array order + indent.
+     */
+    groupingParentId?: string;
 };
 
 export type DesignGroup = {

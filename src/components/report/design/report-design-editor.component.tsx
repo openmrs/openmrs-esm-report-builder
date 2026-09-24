@@ -61,6 +61,11 @@ type DragState = {
     fromGroupId: string;
 } | null;
 
+type DropTarget = {
+    rowId: string;
+    position: 'before' | 'after';
+} | null;
+
 type StructureItem =
     | { kind: 'group'; group: DesignGroup }
     | { kind: 'row'; group: DesignGroup; row: DesignRow; rowIndex: number };
@@ -78,54 +83,60 @@ function clampIndentForRowType(indent: number | undefined, type?: string | null)
 }
 
 /**
- * Rebuild hierarchical relationships (parentId, position, children) based on indent levels.
- * This function analyzes rows and their indent values to establish parent-child connections.
+ * Drops rows repeating an id already seen, keeping the first occurrence.
+ * Heals drafts contaminated by earlier buggy refreshes.
  */
-function rebuildHierarchicalStructure(rows: DesignRow[]): DesignRow[] {
-    const result = [...rows];
-    const parentStack: Array<{ rowId: string; indent: number }> = [];
+function dedupeRowsById(rows: DesignRow[]): DesignRow[] {
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+        if (seen.has(row.id)) return false;
+        seen.add(row.id);
+        return true;
+    });
+}
 
-    for (let i = 0; i < result.length; i++) {
-        const row = result[i];
-        const currentIndent = row.indent ?? 0;
-
-        // Pop from stack until we find the parent (lower indent level)
-        while (parentStack.length > 0 && parentStack[parentStack.length - 1].indent >= currentIndent) {
-            parentStack.pop();
+/**
+ * The rows array order + indent level is the single source of truth for
+ * structure. groupingParentId is derived from them — never set by hand —
+ * via this pure function, applied in one place (updateGroups / build
+ * functions) so it can never drift or mutate shared state. Only group
+ * labels act as containers: a row's groupingParentId is the nearest
+ * preceding group-label with a smaller indent (section labels and other
+ * rows don't count as grouping parents). Also dedupes row ids so duplicate
+ * rows can never survive a round-trip through state or storage.
+ */
+function withDerivedGroupingParents(rows: DesignRow[]): DesignRow[] {
+    rows = dedupeRowsById(rows);
+    const groupStack: DesignRow[] = [];
+    return rows.map((row) => {
+        const next = { ...row };
+        const indent = next.indent ?? 0;
+        while (
+            groupStack.length > 0 &&
+            (groupStack[groupStack.length - 1].indent ?? 0) >= indent
+        ) {
+            groupStack.pop();
         }
-
-        // Set parentId if we have a parent
-        if (parentStack.length > 0) {
-            row.parentId = parentStack[parentStack.length - 1].rowId;
-            row.position = parentStack.filter(p => p.rowId === row.parentId).length;
-        } else {
-            row.parentId = undefined;
-            row.position = 0;
+        const parent = groupStack[groupStack.length - 1];
+        next.groupingParentId = parent ? parent.id : undefined;
+        if (next.type === 'group-label') {
+            groupStack.push(next);
         }
+        return next;
+    });
+}
 
-        // If this could be a parent (not a spacer/label with minimal content), add to stack
-        if (row.type === 'group-label' || row.type === 'section-label' || (row.type === 'indicator' && currentIndent < 10)) {
-            parentStack.push({ rowId: row.id, indent: currentIndent });
-        }
+/**
+ * Exclusive end index of the block rooted at idx: the row itself plus every
+ * following row indented deeper (its descendants, at any nesting depth).
+ */
+function blockEndIndex(rows: DesignRow[], idx: number): number {
+    const indent = rows[idx].indent ?? 0;
+    let end = idx + 1;
+    while (end < rows.length && (rows[end].indent ?? 0) > indent) {
+        end++;
     }
-
-    // Build children arrays for parent rows
-    const childrenMap = new Map<string, string[]>();
-    for (const row of result) {
-        if (row.parentId) {
-            if (!childrenMap.has(row.parentId)) {
-                childrenMap.set(row.parentId, []);
-            }
-            childrenMap.get(row.parentId)!.push(row.id);
-        }
-    }
-
-    // Assign children arrays to parent rows
-    for (const row of result) {
-        row.children = childrenMap.get(row.id) || [];
-    }
-
-    return result;
+    return end;
 }
 
 function applyRowTypeDefaults(row: DesignRow, nextType: string): DesignRow {
@@ -213,7 +224,7 @@ function buildDesignFromSectionSources(
             return {
                 id: section.sectionUuid,
                 title: section.title,
-                rows: rebuildHierarchicalStructure(rows),
+                rows: withDerivedGroupingParents(rows),
             };
         }),
     };
@@ -249,29 +260,66 @@ function buildDesignFromSectionSourcesWithMerge(
     // Build new groups, merging with existing where possible
     const mergedGroups: DesignGroup[] = [];
 
+    const processedSectionUuids = new Set<string>();
+
     for (const sectionSource of sectionSources) {
+        // A section ref repeated in the definition must not produce the
+        // group (and all its rows) twice
+        if (processedSectionUuids.has(sectionSource.sectionUuid)) continue;
+        processedSectionUuids.add(sectionSource.sectionUuid);
+
         const existingGroup = existingGroupsMap.get(sectionSource.sectionUuid);
 
         if (existingGroup) {
             // Group exists - merge rows
             const mergedRows: DesignRow[] = [];
 
-            // Create a map of existing rows in this group
-            const existingRowsInGroup = new Map<string, DesignRow>();
-            existingGroup.rows.forEach((row) => {
-                existingRowsInGroup.set(row.id, row);
-            });
-
             // Create a set of new indicator IDs
             const newIndicatorIds = new Set(sectionSource.indicators.map((i) => i.id));
 
-            // Always preserve the section label row if it exists
+            // Upgrade legacy rows whose ids predate the section-scoped id
+            // scheme. Primary match: a legacy id that equals the source
+            // indicator's suffix after `sectionUuid__` (legacy ids WERE the
+            // raw indicatorUuid/code), which is exact and immutable. Fallback:
+            // unique non-empty code — empty codes (custom rows) or codes used
+            // by several indicators would match many rows to one id and
+            // fabricate duplicates. Unmatched legacy rows adopt the current
+            // source id so the rows are recognised below instead of being
+            // dropped and re-created at the bottom of the group.
+            const suffixBySourceId = new Map(
+                sectionSource.indicators.map((i) => {
+                    const sep = i.id.indexOf('__');
+                    return [sep >= 0 ? i.id.slice(sep + 2) : i.id, i];
+                }),
+            );
+            const codeCounts = new Map<string, number>();
+            sectionSource.indicators.forEach((i) => {
+                codeCounts.set(i.code, (codeCounts.get(i.code) ?? 0) + 1);
+            });
+            const sourceByCode = new Map(
+                sectionSource.indicators
+                    .filter((i) => i.code && codeCounts.get(i.code) === 1)
+                    .map((i) => [i.code, i]),
+            );
+            const existingRows = existingGroup.rows.map((row) => {
+                if (row.type !== 'indicator' || newIndicatorIds.has(row.id)) return row;
+                const sep = row.id.indexOf('__');
+                const legacyKey = sep >= 0 ? row.id.slice(sep + 2) : row.id;
+                const match = suffixBySourceId.get(legacyKey) ?? sourceByCode.get(row.code ?? '');
+                return match ? { ...row, id: match.id } : row;
+            });
+
+            // Create a map of existing rows in this group
+            const existingRowsInGroup = new Map<string, DesignRow>();
+            existingRows.forEach((row) => {
+                existingRowsInGroup.set(row.id, row);
+            });
+
             const sectionLabelRowId = `${sectionSource.sectionUuid}__section_label`;
-            const existingSectionLabel = existingRowsInGroup.get(sectionLabelRowId);
-            if (existingSectionLabel) {
-                mergedRows.push({ ...existingSectionLabel }); // Preserve all customizations
-            } else {
-                // Create new section label row
+
+            // Only create the section label if it doesn't exist yet; if it does,
+            // the walk below keeps it in its current (possibly user-moved) position.
+            if (!existingRowsInGroup.has(sectionLabelRowId)) {
                 mergedRows.push({
                     id: sectionLabelRowId,
                     type: 'section-label' as any,
@@ -284,53 +332,96 @@ function buildDesignFromSectionSourcesWithMerge(
                 });
             }
 
-            // Merge indicator rows
-            for (const indicator of sectionSource.indicators) {
-                const existingRow = existingRowsInGroup.get(indicator.id);
-
-                if (existingRow) {
-                    // Row exists - preserve all customizations
-                    mergedRows.push({ ...existingRow });
-                } else {
-                    // New indicator - create default row
-                    mergedRows.push({
-                        id: indicator.id,
-                        type: 'indicator' as const,
-                        code: indicator.code,
-                        label: `${indicator.code}. ${indicator.name}`,
-                        indent: 1,
-                        keyPattern: '{code}_{age}_{sex}',
-                        dims: {},
-                        showTotal: true,
-                        showDisaggregation: true,
-                        span: 'label-only' as any,
-                        emphasis: 'normal' as any,
-                    });
+            // Preserve the user's row ORDER: walk the existing rows in their
+            // current arrangement and keep the ones that still belong, so
+            // moves/drops and indents survive the refresh.
+            for (const row of existingRows) {
+                if (newIndicatorIds.has(row.id)) {
+                    mergedRows.push({ ...row }); // existing indicator - keep customizations in place
+                    continue;
                 }
+                if (row.type === 'indicator') {
+                    continue; // indicator was removed from the section source - drop it
+                }
+                mergedRows.push({ ...row }); // section label / custom rows keep their position
             }
 
-            // Preserve any additional custom rows that aren't section labels or standard indicators
-            // (e.g., group labels, custom rows the user added)
-            for (const [rowId, row] of existingRowsInGroup) {
-                if (
-                    rowId !== sectionLabelRowId &&
-                    !newIndicatorIds.has(rowId) &&
-                    row.type !== 'section-label' &&
-                    row.type !== 'indicator'
-                ) {
-                    // This is a custom row - preserve it
-                    mergedRows.push({ ...row });
-                }
-            }
+            // Place indicators that are new to the design next to their
+            // source-order neighbours: the section config only carries a flat
+            // sortOrder (no parent info), so the closest anchor available is
+            // the preceding sibling indicator that already exists in the
+            // design. The new row inherits the anchor's indent and is inserted
+            // after the anchor's indented block, i.e. as its next sibling.
+            const placedIds = new Set(mergedRows.map((r) => r.id));
 
-            // Rebuild hierarchical relationships for merged rows
-            const rowsWithStructure = rebuildHierarchicalStructure(mergedRows);
+            sectionSource.indicators.forEach((indicator, idx) => {
+                if (placedIds.has(indicator.id)) return;
+
+                const newRow: DesignRow = {
+                    id: indicator.id,
+                    type: 'indicator' as const,
+                    code: indicator.code,
+                    label: `${indicator.code}. ${indicator.name}`,
+                    indent: 1,
+                    keyPattern: '{code}_{age}_{sex}',
+                    dims: {},
+                    showTotal: true,
+                    showDisaggregation: true,
+                    span: 'label-only' as any,
+                    emphasis: 'normal' as any,
+                };
+
+                let inserted = false;
+                // Backward: insert after the nearest preceding placed sibling
+                // (and its indented children), i.e. as its next sibling
+                for (let k = idx - 1; k >= 0 && !inserted; k--) {
+                    const anchorId = sectionSource.indicators[k].id;
+                    if (!placedIds.has(anchorId)) continue;
+
+                    const anchorIdx = mergedRows.findIndex((r) => r.id === anchorId);
+                    if (anchorIdx < 0) break;
+
+                    const anchor = mergedRows[anchorIdx];
+                    const anchorIndent = anchor.indent ?? 0;
+                    newRow.indent = anchorIndent;
+
+                    let insertIdx = anchorIdx + 1;
+                    while (
+                        insertIdx < mergedRows.length &&
+                        (mergedRows[insertIdx].indent ?? 0) > anchorIndent
+                    ) {
+                        insertIdx++;
+                    }
+                    mergedRows.splice(insertIdx, 0, newRow);
+                    inserted = true;
+                }
+
+                // Forward: nothing placed precedes it in the source — insert
+                // before the nearest following placed sibling instead, so a
+                // new first-of-section lands at the top rather than the bottom
+                for (let k = idx + 1; k < sectionSource.indicators.length && !inserted; k++) {
+                    const anchorId = sectionSource.indicators[k].id;
+                    if (!placedIds.has(anchorId)) continue;
+
+                    const anchorIdx = mergedRows.findIndex((r) => r.id === anchorId);
+                    if (anchorIdx < 0) break;
+
+                    newRow.indent = mergedRows[anchorIdx].indent ?? 1;
+                    mergedRows.splice(anchorIdx, 0, newRow);
+                    inserted = true;
+                }
+
+                if (!inserted) {
+                    mergedRows.push(newRow);
+                }
+                placedIds.add(indicator.id);
+            });
 
             // Update group title but preserve other properties
             mergedGroups.push({
                 ...existingGroup,
                 title: sectionSource.title,
-                rows: rowsWithStructure,
+                rows: withDerivedGroupingParents(mergedRows),
             });
         } else {
             // New group - build from section source
@@ -363,7 +454,7 @@ function buildDesignFromSectionSourcesWithMerge(
             mergedGroups.push({
                 id: sectionSource.sectionUuid,
                 title: sectionSource.title,
-                rows: rebuildHierarchicalStructure(newGroupRows),
+                rows: withDerivedGroupingParents(newGroupRows),
             });
         }
     }
@@ -372,10 +463,10 @@ function buildDesignFromSectionSourcesWithMerge(
     // (e.g., groups the user manually created)
     for (const [groupId, group] of existingGroupsMap) {
         if (!newSectionUuids.has(groupId)) {
-            // This is a custom group - preserve it with rebuilt structure
+            // This is a custom group - preserve it
             mergedGroups.push({
                 ...group,
-                rows: rebuildHierarchicalStructure(group.rows.map((row) => ({ ...row })))
+                rows: withDerivedGroupingParents(group.rows.map((row) => ({ ...row }))),
             });
         }
     }
@@ -422,7 +513,7 @@ const ReportDesignEditor: React.FC<Props> = ({
     const [selectedGroupId, setSelectedGroupId] = React.useState<string | null>(null);
     const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
     const [dragState, setDragState] = React.useState<DragState>(null);
-    const [dragOverRowId, setDragOverRowId] = React.useState<string | null>(null);
+    const [dropTarget, setDropTarget] = React.useState<DropTarget>(null);
     const [propTab, setPropTab] = React.useState<'details' | 'disaggregation' | 'mapping' | 'api'>('details');
 
     const draft = React.useMemo<ReportDesignDraft>(
@@ -457,7 +548,9 @@ const ReportDesignEditor: React.FC<Props> = ({
         (nextGroups: DesignGroup[]) => {
             setDraft({
                 ...draft,
-                groups: nextGroups,
+                // Single choke point: every row mutation funnels through here,
+                // so derived parents are recomputed after every change.
+                groups: nextGroups.map((g) => ({ ...g, rows: withDerivedGroupingParents(g.rows) })),
             });
         },
         [draft, setDraft],
@@ -478,11 +571,7 @@ const ReportDesignEditor: React.FC<Props> = ({
                         };
                     });
 
-                    // Rebuild hierarchical structure after update
-                    return {
-                        ...g,
-                        rows: rebuildHierarchicalStructure(rows),
-                    };
+                    return { ...g, rows };
                 }),
             );
         },
@@ -533,19 +622,47 @@ const ReportDesignEditor: React.FC<Props> = ({
             const idx = rows.findIndex((r) => r.id === rowId);
             if (idx < 0) return;
 
-            const j = idx + dir;
-            if (j < 0 || j >= rows.length) return;
+            // Move the whole block (the row plus its descendants), swapping
+            // with the adjacent sibling block so nesting stays intact.
+            const indent = rows[idx].indent ?? 0;
+            const end = blockEndIndex(rows, idx);
+            const block = rows.slice(idx, end);
 
-            const tmp = rows[idx];
-            rows[idx] = rows[j];
-            rows[j] = tmp;
+            let next: DesignRow[] | null = null;
 
-            // Rebuild hierarchical structure after move
-            const rowsWithStructure = rebuildHierarchicalStructure(rows);
+            if (dir === -1) {
+                // Find the start of the previous sibling block (skip its children)
+                let p = idx - 1;
+                while (p >= 0 && (rows[p].indent ?? 0) > indent) {
+                    p--;
+                }
+                if (p >= 0 && (rows[p].indent ?? 0) === indent) {
+                    next = [
+                        ...rows.slice(0, p),
+                        ...block,
+                        ...rows.slice(p, idx),
+                        ...rows.slice(end),
+                    ];
+                }
+            } else {
+                // Find the end of the next sibling block
+                if (end < rows.length && (rows[end].indent ?? 0) >= indent) {
+                    const nextEnd = blockEndIndex(rows, end);
+                    const nextBlock = rows.slice(end, nextEnd);
+                    next = [
+                        ...rows.slice(0, idx),
+                        ...nextBlock,
+                        ...block,
+                        ...rows.slice(nextEnd),
+                    ];
+                }
+            }
+
+            if (!next) return; // no sibling to swap with
 
             updateGroups(
                 groups.map((g) =>
-                    g.id === groupId ? { ...g, rows: rowsWithStructure } : g,
+                    g.id === groupId ? { ...g, rows: next! } : g,
                 ),
             );
         },
@@ -566,12 +683,9 @@ const ReportDesignEditor: React.FC<Props> = ({
                 r.id === rowId ? { ...r, indent: nextIndent } : r
             );
 
-            // Rebuild hierarchical structure after indent change
-            const rowsWithStructure = rebuildHierarchicalStructure(rows);
-
             updateGroups(
                 groups.map((g) =>
-                    g.id === groupId ? { ...g, rows: rowsWithStructure } : g,
+                    g.id === groupId ? { ...g, rows } : g,
                 ),
             );
         },
@@ -610,35 +724,42 @@ const ReportDesignEditor: React.FC<Props> = ({
     }, []);
 
     const handleDropOnRow = React.useCallback(
-        (targetGroupId: string, targetRowId: string) => {
-            if (!dragState) return;
-            if (dragState.fromGroupId !== targetGroupId) return;
-            if (dragState.rowId === targetRowId) return;
+        (targetGroupId: string, targetRowId: string, dropPosition: 'before' | 'after') => {
+            const state = dragState;
+            setDragState(null);
+            setDropTarget(null);
+
+            if (!state) return;
+            if (state.fromGroupId !== targetGroupId) return;
+            if (state.rowId === targetRowId) return;
 
             const group = groups.find((g) => g.id === targetGroupId);
             if (!group) return;
 
             const rows = group.rows.slice();
-            const fromIdx = rows.findIndex((r) => r.id === dragState.rowId);
-            const toIdx = rows.findIndex((r) => r.id === targetRowId);
+            const fromIdx = rows.findIndex((r) => r.id === state.rowId);
+            const targetIdx = rows.findIndex((r) => r.id === targetRowId);
 
-            if (fromIdx < 0 || toIdx < 0) return;
+            if (fromIdx < 0 || targetIdx < 0) return;
 
-            const moving = rows[fromIdx];
-            rows.splice(fromIdx, 1);
-            rows.splice(toIdx, 0, moving);
+            // Move the dragged row together with its descendants (a dragged
+            // group label carries its children with it).
+            const blockEnd = blockEndIndex(rows, fromIdx);
+            if (targetIdx >= fromIdx && targetIdx < blockEnd) return; // can't drop inside own block
 
-            // Rebuild hierarchical structure after drop
-            const rowsWithStructure = rebuildHierarchicalStructure(rows);
+            const block = rows.slice(fromIdx, blockEnd);
+            const rest = [...rows.slice(0, fromIdx), ...rows.slice(blockEnd)];
+
+            // Insertion point in original indices; adjust for the removed block
+            let insertAt = dropPosition === 'before' ? targetIdx : targetIdx + 1;
+            if (insertAt >= blockEnd) insertAt -= block.length;
+            rest.splice(Math.min(insertAt, rest.length), 0, ...block);
 
             updateGroups(
                 groups.map((g) =>
-                    g.id === targetGroupId ? { ...g, rows: rowsWithStructure } : g,
+                    g.id === targetGroupId ? { ...g, rows: rest } : g,
                 ),
             );
-
-            setDragState(null);
-            setDragOverRowId(null);
         },
         [dragState, groups, updateGroups],
     );
@@ -656,6 +777,9 @@ const ReportDesignEditor: React.FC<Props> = ({
     }, [groups]);
 
     const mappingPreview = React.useMemo(() => buildMappingPreview(groups), [groups]);
+
+    // Stringify once per draft change, not on every drag-related re-render
+    const draftJson = React.useMemo(() => JSON.stringify(draft, null, 2), [draft]);
 
     return (
         <div className={styles.designWorkspace}>
@@ -743,7 +867,8 @@ const ReportDesignEditor: React.FC<Props> = ({
 
                                         const { group, row, rowIndex } = item;
                                         const isSelected = row.id === selectedRowId;
-                                        const isDragOver = row.id === dragOverRowId;
+                                        const isDropTarget = dropTarget?.rowId === row.id;
+                                        const dropEdge = isDropTarget ? dropTarget!.position : null;
 
                                         const isSectionLabel = row.type === ('section-label' as any);
                                         const isGroupLabel = row.type === ('group-label' as any);
@@ -755,15 +880,36 @@ const ReportDesignEditor: React.FC<Props> = ({
                                                 onDragStart={() => handleDragStart(row.id, group.id)}
                                                 onDragEnd={() => {
                                                     setDragState(null);
-                                                    setDragOverRowId(null);
+                                                    setDropTarget(null);
                                                 }}
                                                 onDragOver={(e) => {
                                                     e.preventDefault();
-                                                    setDragOverRowId(row.id);
+                                                    // No drop indicator inside the dragged row's own
+                                                    // block — a group can't be dropped into itself
+                                                    if (dragState && dragState.fromGroupId === group.id) {
+                                                        const fromIdx = group.rows.findIndex((r) => r.id === dragState.rowId);
+                                                        if (fromIdx >= 0) {
+                                                            const blockEnd = blockEndIndex(group.rows, fromIdx);
+                                                            const targetIdx = group.rows.findIndex((r) => r.id === row.id);
+                                                            if (targetIdx >= fromIdx && targetIdx < blockEnd) {
+                                                                setDropTarget(null);
+                                                                return;
+                                                            }
+                                                        }
+                                                    }
+                                                    // Decide above/below the target from the cursor's half of the row
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const after = e.clientY - rect.top > rect.height / 2;
+                                                    const position = after ? 'after' as const : 'before' as const;
+                                                    setDropTarget((prev) =>
+                                                        prev && prev.rowId === row.id && prev.position === position
+                                                            ? prev
+                                                            : { rowId: row.id, position },
+                                                    );
                                                 }}
                                                 onDrop={(e) => {
                                                     e.preventDefault();
-                                                    handleDropOnRow(group.id, row.id);
+                                                    handleDropOnRow(group.id, row.id, dropTarget?.rowId === row.id ? dropTarget.position : 'before');
                                                 }}
                                                 onClick={() => {
                                                     setSelectedGroupId(group.id);
@@ -779,9 +925,12 @@ const ReportDesignEditor: React.FC<Props> = ({
                                                     borderRadius: 6,
                                                     border: isSelected
                                                         ? '2px solid var(--cds-border-interactive, #0f62fe)'
-                                                        : isDragOver
-                                                            ? '2px dashed var(--cds-border-interactive, #0f62fe)'
-                                                            : '1px solid transparent',
+                                                        : '1px solid transparent',
+                                                    boxShadow: dropEdge
+                                                        ? dropEdge === 'before'
+                                                            ? 'inset 0 2px 0 var(--cds-border-interactive, #0f62fe)'
+                                                            : 'inset 0 -2px 0 var(--cds-border-interactive, #0f62fe)'
+                                                        : undefined,
                                                     background: isSelected ? 'var(--cds-layer-selected, #e8f1ff)' : 'transparent',
                                                     cursor: 'pointer',
                                                 }}
@@ -927,7 +1076,7 @@ const ReportDesignEditor: React.FC<Props> = ({
                                     padding: '0.75rem',
                                 }}
                             >
-                {JSON.stringify(draft, null, 2)}
+                {draftJson}
               </pre>
                         </div>
                     </div>

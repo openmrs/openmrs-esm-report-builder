@@ -117,6 +117,21 @@ function safeParseJson(raw?: string | null): any {
   }
 }
 
+/**
+ * Stable id for indicators lacking uuid/id/code: derived from content, not
+ * list position, so reordering the section's indicators doesn't re-key the
+ * rows (which would make the next refresh discard their customizations).
+ */
+function fallbackIndicatorId(code: string, name: string): string {
+  const basis = `${code}|${name}`;
+  if (!code && !name) return '';
+  let hash = 5381;
+  for (let i = 0; i < basis.length; i++) {
+    hash = ((hash << 5) + hash + basis.charCodeAt(i)) | 0;
+  }
+  return `ind-${(hash >>> 0).toString(36)}`;
+}
+
 export default function ReportEditorPage() {
   const { t } = useTranslation();
   const { reportId } = useParams();
@@ -226,6 +241,9 @@ export default function ReportEditorPage() {
     const sectionMap = new Map(allSections.map((s) => [s.uuid, s]));
 
     return chosen
+        // A section ref repeated in a saved definition would otherwise
+        // duplicate the whole group in the design
+        .filter((ref: any, idx: number) => chosen.findIndex((r: any) => r.sectionUuid === ref.sectionUuid) === idx)
         .slice()
         .sort((a: any, b: any) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
         .map((ref: any) => {
@@ -240,7 +258,13 @@ export default function ReportEditorPage() {
                 .slice()
                 .sort((a: any, b: any) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
                 .map((i: any) => ({
-                  id: String(i.indicatorUuid ?? i.id ?? i.code ?? crypto.randomUUID()),
+                  // Scope by section so the same indicator in two sections
+                  // can never collide on row id. Fallbacks are content-derived
+                  // (no crypto.randomUUID, no list index) so ids survive page
+                  // reloads, merges, and indicator reordering.
+                  id: `${ref.sectionUuid}__${String(
+                      i.indicatorUuid ?? i.id ?? i.code ?? (fallbackIndicatorId(String(i.code ?? ''), String(i.name ?? '')) || 'indicator'),
+                  )}`,
                   code: String(i.code ?? ''),
                   name: String(i.name ?? i.code ?? ''),
                   type: String(i.kind ?? 'indicator'),
@@ -455,6 +479,30 @@ export default function ReportEditorPage() {
       hasPrivilege(RB.REPORT_COMPILE) &&
       Boolean((savedReport?.uuid || reportId || form.name.trim()) && !saving && !compiling && !loading);
 
+  // Stringify once per form change so drag interactions in the design editor
+  // don't re-serialize the whole form on every render.
+  const formDebugJson = React.useMemo(
+      () =>
+          JSON.stringify(
+              {
+                uuid: form.uuid,
+                name: form.name,
+                description: form.description,
+                code: form.code,
+                definition: {
+                  sections: form.sections,
+                },
+                design: form.design,
+                sectionSources,
+                mode,
+                savedReportUuid: savedReport?.uuid ?? null,
+              },
+              null,
+              2,
+          ),
+      [form, sectionSources, mode, savedReport],
+  );
+
   return (
       <>
         <Header
@@ -557,23 +605,7 @@ export default function ReportEditorPage() {
           <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Current Report Form</div>
 
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.85rem' }}>
-          {JSON.stringify(
-              {
-                uuid: form.uuid,
-                name: form.name,
-                description: form.description,
-                code: form.code,
-                definition: {
-                  sections: form.sections,
-                },
-                design: form.design,
-                sectionSources,
-                mode,
-                savedReportUuid: savedReport?.uuid ?? null,
-              },
-              null,
-              2,
-          )}
+          {formDebugJson}
         </pre>
         </div>
 
