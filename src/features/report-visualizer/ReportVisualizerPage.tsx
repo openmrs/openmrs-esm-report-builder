@@ -36,6 +36,14 @@ import { showToast, showNotification, showModal } from '@openmrs/esm-framework';
 
 import type { ReportLibraryItem, ReportViewType } from './types';
 
+const showErrorNotification = (title: string, description: string) =>
+  showNotification({
+    title,
+    kind: 'error',
+    critical: true,
+    description,
+  });
+
 const ReportVisualizerPage: React.FC = () => {
   // ===== PREFERENCES =====
   // Load user preferences from localStorage
@@ -108,7 +116,6 @@ const ReportVisualizerPage: React.FC = () => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizing) {
         const newWidth = Math.max(280, Math.min(700, e.clientX));
-        setExplorerWidth(newWidth);
         setExplorerWidth(newWidth);
       }
     };
@@ -259,9 +266,9 @@ const ReportVisualizerPage: React.FC = () => {
         }
 
         // TODO: Future - parse tabular data based on report design interpreter
-        // For now, reports are rendered via HTML only
+        // For now, reports are rendered via HTML only, so no row count is known —
+        // omitting rowCount keeps the summary and print header from claiming "0 records"
         setReportResults({
-          rowCount: 0,
           generatedTime: new Date().toISOString(),
           parameters: parameterValues,
         });
@@ -275,16 +282,12 @@ const ReportVisualizerPage: React.FC = () => {
           description: '',
         });
       } else {
-        throw new Error(`Report execution failed with status ${response.status}`);
+        console.error(`Report execution failed with status ${response.status}`);
+        showErrorNotification('Error executing report', `Report execution failed with status ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to run report:', error);
-      showNotification({
-        title: 'Error executing report',
-        kind: 'error',
-        critical: true,
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
+      showErrorNotification('Error executing report', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setRunningReport(false);
     }
@@ -292,19 +295,142 @@ const ReportVisualizerPage: React.FC = () => {
 
   // ===== EXPORT =====
   /**
+   * Print only the report via a hidden iframe. The iframe document contains the report
+   * content and nothing else, so the printout is the report section alone. Printing from
+   * an iframe also sidesteps the shadow DOM boundary — page-level print CSS cannot hide
+   * SPA chrome around a shadow tree, so an isolated document is the reliable route.
+   */
+  const handlePrintReport = useCallback(() => {
+    const tableData = reportResults?.data;
+    const hasTable = !!tableData?.length;
+    if (!htmlContent && !hasTable) {
+      showNotification({
+        title: 'Nothing to print',
+        kind: 'warning',
+        critical: false,
+        description: 'Run the report first, then export it as PDF',
+      });
+      return;
+    }
+
+    const reportName = selectedReport?.name ?? 'Report';
+    const startDate = parameterValues?.startDate || formatDate(new Date());
+    const endDate = parameterValues?.endDate || formatDate(new Date());
+    const escapeHtml = (value: any) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Content source: the backend-rendered report HTML, printed with its own styles plus
+    // the clean base print styles below. Deliberately not the on-screen rendering — the
+    // UI theme styling (Carbon variables, module classes) reads like the app, while the
+    // backend HTML reads like the source document. When tabular results exist they are
+    // printed as a plain table instead.
+    let contentHtml = '';
+    if (htmlContent) {
+      contentHtml = htmlContent;
+    } else if (hasTable) {
+      const columns: Array<any> = reportResults.columns?.length
+        ? reportResults.columns
+        : Object.keys(tableData[0]).map((key) => ({ key, header: key }));
+      const header = `<tr>${columns.map((c) => `<th>${escapeHtml(c.header ?? c.key)}</th>`).join('')}</tr>`;
+      const rows = tableData
+        .map((row: any) => `<tr>${columns.map((c) => `<td>${escapeHtml(row[c.key])}</td>`).join('')}</tr>`)
+        .join('');
+      contentHtml = `<table>${header}${rows}</table>`;
+    }
+
+    if (!contentHtml) {
+      showNotification({
+        title: 'Nothing to print',
+        kind: 'warning',
+        critical: false,
+        description: 'Run the report first, then export it as PDF',
+      });
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('title', 'Report print preview');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    doc.open();
+    doc.write(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(reportName)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm; }
+    body {
+      font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+      color: #000;
+      background: #fff;
+      margin: 0;
+      /* Print shaded table headers etc. as they appear on screen */
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+    .print-header h1 { font-size: 14pt; margin: 0 0 2pt; }
+    .print-header p { font-size: 8pt; color: #444; margin: 0 0 10pt; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #8d8d8d; padding: 2pt 4pt; font-size: 8pt; text-align: left; }
+    th { background: #e0e0e0; }
+  </style>
+</head>
+<body>
+  <div class="print-header">
+    <h1>${escapeHtml(reportName)}</h1>
+    <p>Generated ${new Date().toLocaleString()} &middot; Start date: ${escapeHtml(startDate)} &middot; End date: ${escapeHtml(endDate)}${
+      reportResults?.rowCount > 0 ? ` &middot; ${reportResults.rowCount} records` : ''
+    }</p>
+  </div>
+  ${contentHtml}
+</body>
+</html>`);
+    doc.close();
+
+    iframe.contentWindow.addEventListener('afterprint', () => iframe.remove());
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    // Fallback removal if afterprint never fires
+    setTimeout(() => iframe.remove(), 60000);
+  }, [htmlContent, reportResults, selectedReport, parameterValues]);
+
+  /**
+   * Handle export request
+   */
+
+  /**
    * Handle export request
    */
   const handleExport = useCallback(async (format: 'CSV' | 'XLSX' | 'PDF') => {
     if (!selectedReport) return;
 
+    // PDF prints the rendered report section on the page instead of asking the backend for a file
+    if (format === 'PDF') {
+      handlePrintReport();
+      return;
+    }
+
     try {
       const reportUuid = selectedReport.reportDefinitionUuid || selectedReport.uuid;
 
-      // Call downloadReport API
+      // Call downloadReport API — the endpoint defaults to excel when no format is sent,
+      // so the chosen export format must be passed explicitly
       const response = await downloadReport({
         uuid: reportUuid,
         startDate: parameterValues.startDate || formatDate(new Date()),
         endDate: parameterValues.endDate || formatDate(new Date()),
+        format: format === 'CSV' ? 'csv' : 'excel',
       });
 
       if (response.ok) {
@@ -329,18 +455,14 @@ const ReportVisualizerPage: React.FC = () => {
           description: '',
         });
       } else {
-        throw new Error(`Export failed with status ${response.status}`);
+        console.error(`Export failed with status ${response.status}`);
+        showErrorNotification('Error exporting report', `Export failed with status ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to export report:', error);
-      showNotification({
-        title: 'Error exporting report',
-        kind: 'error',
-        critical: true,
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
+      showErrorNotification('Error exporting report', error instanceof Error ? error.message : 'Unknown error');
     }
-  }, [selectedReport, parameterValues]);
+  }, [selectedReport, parameterValues, handlePrintReport]);
 
   // ===== DHIS2 =====
   /**
@@ -364,16 +486,12 @@ const ReportVisualizerPage: React.FC = () => {
               description: `Report ${selectedReport.name} sent successfully`,
             });
           } else {
-            throw new Error(`DHIS2 send failed with status ${response.status}`);
+            console.error(`DHIS2 send failed with status ${response.status}`);
+            showErrorNotification('Error sending to DHIS2', `DHIS2 send failed with status ${response.status}`);
           }
         } catch (error) {
           console.error('Failed to send to DHIS2:', error);
-          showNotification({
-            title: 'Error sending to DHIS2',
-            kind: 'error',
-            critical: true,
-            description: error instanceof Error ? error.message : 'Unknown error',
-          });
+          showErrorNotification('Error sending to DHIS2', error instanceof Error ? error.message : 'Unknown error');
         }
         dispose();
       },

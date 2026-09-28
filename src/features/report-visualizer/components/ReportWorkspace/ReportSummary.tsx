@@ -11,7 +11,8 @@ import { Tag } from '@carbon/react';
 import { Time } from '@carbon/react/icons';
 
 interface ReportSummaryProps {
-  rowCount: number;
+  /** Omitted when the report renders as HTML only and no row count is known */
+  rowCount?: number;
   generatedTime: Date;
   parameters?: Record<string, any>;
 }
@@ -47,15 +48,19 @@ const ReportSummary: React.FC<ReportSummaryProps> = ({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-      {/* Record count */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <span style={{ fontSize: '0.875rem', color: '#333' }}>
-          {formatNumber(rowCount)} {rowCount === 1 ? 'record' : 'records'}
-        </span>
-      </div>
+      {/* Record count — only when known (tabular results) */}
+      {rowCount !== undefined && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.875rem', color: '#333' }}>
+              {formatNumber(rowCount)} {rowCount === 1 ? 'record' : 'records'}
+            </span>
+          </div>
 
-      {/* Separator */}
-      <span style={{ color: '#999' }}>•</span>
+          {/* Separator */}
+          <span style={{ color: '#999' }}>•</span>
+        </>
+      )}
 
       {/* Generation time */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', color: '#666' }}>

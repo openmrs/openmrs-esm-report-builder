@@ -34,6 +34,8 @@ type ReportDownloadParams = {
   uuid: string;
   startDate: string;
   endDate: string;
+  /** Download format understood by the reportDownload endpoint: csv, pdf or excel. Defaults to excel server-side. */
+  format?: "csv" | "pdf" | "excel";
   reportCategory?: ReportCategory;
   reportingCohort?: CQIReportingCohort;
 };
@@ -118,6 +120,9 @@ export async function getReport(params: ReportRequest, signal?: AbortSignal) {
 export function downloadReport(params: ReportDownloadParams) {
   const abortController = new AbortController();
   let apiUrl = `${restBaseUrl}/reportbuilder/reportDownload?startDate=${params.startDate}&endDate=${params.endDate}&uuid=${params.uuid}`;
+  if (params.format) {
+    apiUrl += `&format=${params.format}`;
+  }
   if (params.reportCategory === "cqi") {
     apiUrl += `&cohortList=${params.reportingCohort}`;
   }

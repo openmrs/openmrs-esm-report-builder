@@ -141,7 +141,7 @@ const ReportWorkspacePanel: React.FC<ReportWorkspacePanelProps> = ({
         {!runningReport && selectedReport && (reportResults || htmlContent) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Report Summary */}
-            {reportResults?.rowCount !== undefined && reportResults?.generatedTime && (
+            {reportResults?.generatedTime && (
               <ReportSummary
                 rowCount={reportResults.rowCount}
                 generatedTime={new Date(reportResults.generatedTime)}
