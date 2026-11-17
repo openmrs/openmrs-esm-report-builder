@@ -51,7 +51,7 @@
   "devDependencies": {
     "@openmrs/esm-framework": "next",
     "@openmrs/esm-styleguide": "next",
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.65.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@types/file-saver": "^2.0.7",
