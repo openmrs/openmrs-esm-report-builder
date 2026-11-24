@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "license": "MPL-2.0",
   "description": "OpenMRS ESM Report Builder",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmrs/openmrs-esm-report-builder.git"
+  },
   "browser": "dist/openmrs-esm-report-builder.js",
   "main": "src/index.ts",
   "source": true,
